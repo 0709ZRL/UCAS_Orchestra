@@ -102,12 +102,15 @@ CREATE TABLE `events` (
 
 ### 3. `attendance` — 出勤信息
 
+> 用户通过姓名和活动名搜索，系统自动匹配 ID；支持报名/参加两种方式。
+
 | 字段 | 类型 | 空 | 键 | 默认值 | 说明 |
 |------|------|----|----|--------|------|
 | `attendanceId` | `int unsigned` | NO | **PRI** | — | 自增主键 |
 | `personalId` | `varchar(64)` | NO | **MUL** | — | 用户ID（外键→`persons`） |
 | `eventId` | `varchar(64)` | NO | **MUL** | — | 活动ID（外键→`events`） |
 | `title` | `varchar(200)` | YES | — | `NULL` | 标题 |
+| `method` | `tinyint(1)` | NO | — | `0` | 参加方式（0=报名，1=参加） |
 
 **索引：**
 - 主键：`attendanceId`
@@ -128,6 +131,7 @@ CREATE TABLE `attendance` (
   `personalId` varchar(64) NOT NULL,
   `eventId` varchar(64) NOT NULL,
   `title` varchar(200) DEFAULT NULL,
+  `method` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0=报名 1=参加',
   PRIMARY KEY (`attendanceId`),
   UNIQUE KEY `UNQ_Attendance_Personal_Event` (`personalId`,`eventId`),
   KEY `FK_Attendance_Personal` (`personalId`),
@@ -255,6 +259,7 @@ erDiagram
         varchar(64) personalId FK
         varchar(64) eventId FK
         varchar(200) title
+        tinyint method "0报名 1参加"
     }
 
     scores {

@@ -11,7 +11,6 @@ router.get('/', async (req, res, next) => {
     if (personalId) { where += ' AND a.personalId = ?'; params.push(personalId); }
     if (eventId) { where += ' AND a.eventId = ?'; params.push(eventId); }
 
-    // 单独统计总数（避免跨行 regex 问题）
     const [countRows] = await pool.query(
       `SELECT COUNT(*) AS total FROM attendance a ${where}`, params
     );
@@ -31,16 +30,42 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/attendance — 签到
+// POST /api/attendance/lookup — 根据姓名/活动名查找匹配
+router.post('/lookup', async (req, res, next) => {
+  try {
+    const { personName, eventTitle } = req.body;
+    const result = { person: null, event: null, personOptions: [], eventOptions: [] };
+
+    if (personName) {
+      const [persons] = await pool.query(
+        'SELECT personalId, name, section, campus FROM persons WHERE name LIKE ?',
+        [`%${personName}%`]
+      );
+      if (persons.length === 1) result.person = persons[0];
+      else result.personOptions = persons;
+    }
+    if (eventTitle) {
+      const [events] = await pool.query(
+        'SELECT eventId, title, year, month, date, startTime FROM events WHERE title LIKE ?',
+        [`%${eventTitle}%`]
+      );
+      if (events.length === 1) result.event = events[0];
+      else result.eventOptions = events;
+    }
+    res.json({ success: true, ...result });
+  } catch (err) { next(err); }
+});
+
+// POST /api/attendance — 签到（需传入已确认的 personalId 和 eventId）
 router.post('/', async (req, res, next) => {
   try {
-    const { personalId, eventId, title } = req.body;
+    const { personalId, eventId, title, method } = req.body;
     if (!personalId || !eventId) {
       return res.status(400).json({ success: false, message: 'personalId 和 eventId 为必填项' });
     }
     await pool.query(
-      'INSERT INTO attendance (personalId, eventId, title) VALUES (?, ?, ?)',
-      [personalId, eventId, title || null]
+      'INSERT INTO attendance (personalId, eventId, title, method) VALUES (?, ?, ?, ?)',
+      [personalId, eventId, title || null, method !== undefined ? (method ? 1 : 0) : 0]
     );
     res.status(201).json({ success: true, message: '签到成功' });
   } catch (err) {

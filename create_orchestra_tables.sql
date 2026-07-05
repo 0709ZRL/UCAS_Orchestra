@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   personalId VARCHAR(64) NOT NULL,
   eventId VARCHAR(64) NOT NULL,
   title VARCHAR(200),
+  method TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0=报名 1=参加',
   PRIMARY KEY (attendanceId),
   UNIQUE KEY UNQ_Attendance_Personal_Event (personalId, eventId),
   KEY FK_Attendance_Personal (personalId),
