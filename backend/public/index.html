@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>乐团管理平台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f2f5;color:#333}
+.header{background:#1a1a2e;color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px}
+.header h1{font-size:20px;font-weight:600}
+.header .env{font-size:12px;background:#e94560;padding:2px 10px;border-radius:10px}
+.container{display:flex;min-height:calc(100vh-60px)}
+.sidebar{width:200px;background:#16213e;padding:0;flex-shrink:0}
+.sidebar a{display:block;padding:14px 20px;color:#a8b2d1;text-decoration:none;font-size:14px;border-left:3px solid transparent;transition:all .2s}
+.sidebar a:hover,.sidebar a.active{background:#1a1a3e;color:#fff;border-left-color:#e94560}
+.main{flex:1;padding:24px}
+.page{display:none}
+.page.active{display:block}
+.toolbar{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.toolbar input,.toolbar select{padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;background:#fff}
+.toolbar button,.btn{padding:8px 16px;border:none;border-radius:6px;font-size:14px;cursor:pointer;background:#e94560;color:#fff;transition:background .2s}
+.toolbar button:hover{background:#c73650}
+.btn-secondary{background:#4a4a6a}
+.btn-secondary:hover{background:#3a3a5a}
+.btn-green{background:#2d8a4e}
+.btn-green:hover{background:#23703f}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px}
+th{background:#fafafa;font-weight:600;color:#666;white-space:nowrap}
+tr:hover{background:#f8f9ff}
+.actions{display:flex;gap:4px}
+.actions button{padding:4px 10px;border:none;border-radius:4px;cursor:pointer;font-size:12px}
+.btn-edit{background:#1890ff;color:#fff}
+.btn-del{background:#ff4d4f;color:#fff}
+.pagination{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:#666}
+.pagination button{padding:4px 12px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:13px}
+.pagination button:disabled{opacity:.5;cursor:default}
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:1000}
+.modal-overlay.active{display:flex;align-items:center;justify-content:center}
+.modal{background:#fff;border-radius:12px;padding:24px;width:520px;max-width:90vw;max-height:80vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.modal h2{margin-bottom:16px;font-size:18px}
+.form-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
+.form-group{flex:1;min-width:180px}
+.form-group label{display:block;font-size:12px;color:#888;margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px}
+.form-group textarea{resize:vertical;min-height:60px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.form-actions button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-size:14px}
+.btn-cancel{background:#f0f0f0;color:#333}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:2000;animation:slideIn .3s;max-width:400px}
+.toast.success{background:#2d8a4e}
+.toast.error{background:#e94560}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.lightbox-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.9);z-index:3000;justify-content:center;align-items:center}
+.lightbox-overlay.active{display:flex}
+.lightbox-img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px}
+.lightbox-close{position:absolute;top:16px;right:24px;font-size:36px;color:#fff;cursor:pointer;font-weight:700;line-height:1;z-index:3001}
+.lightbox-close:hover{color:#e94560}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>🎵 乐团管理平台</h1>
+  <span class="env">Orchestra v1.0</span>
+</div>
+<div class="container">
+  <nav class="sidebar">
+    <a href="#" data-page="persons" class="active">👤 成员管理</a>
+    <a href="#" data-page="events">📅 活动管理</a>
+    <a href="#" data-page="attendance">📋 出勤管理</a>
+    <a href="#" data-page="scores">🎼 乐谱管理</a>
+    <a href="#" data-page="logistics">📦 后勤管理</a>
+  </nav>
+  <div class="main">
+    <!-- Persons -->
+    <div id="page-persons" class="page active"></div>
+    <!-- Events -->
+    <div id="page-events" class="page"></div>
+    <!-- Attendance -->
+    <div id="page-attendance" class="page"></div>
+    <!-- Scores -->
+    <div id="page-scores" class="page"></div>
+    <!-- Logistics -->
+    <div id="page-logistics" class="page"></div>
+  </div>
+</div>
+<div id="modal" class="modal-overlay"><div class="modal" id="modalBody"></div></div>
+<div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
+  <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
+  <img class="lightbox-img" id="lightboxImg" src="" alt="大图预览">
+</div>
+<div id="toast"></div>
+
+<script>
+const API = '/api';
+const state = { persons:{page:1}, events:{page:1}, attendance:{page:1}, scores:{page:1}, logistics:{page:1} };
+
+// 全局联动函数
+function toggleManagerJob(){
+  const el=document.getElementById('f-isManager');
+  const row=document.getElementById('fg-managerJob');
+  if(el&&row)row.style.display=el.value==='1'?'':'none';
+}
+function toggleOwner(){
+  const el=document.getElementById('f-isPublic');
+  const row=document.getElementById('fg-belongsToId');
+  if(el&&row)row.style.display=el.value==='0'?'':'none';
+}
+function syncEndTimeMin(){
+  const st=document.getElementById('f-startTime');
+  const et=document.getElementById('f-endTime');
+  if(st&&et){et.min=st.value;}
+}
+function openLightbox(url){
+  document.getElementById('lightboxImg').src=url;
+  document.getElementById('lightbox').classList.add('active');
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('active');
+  document.getElementById('lightboxImg').src='';
+}
+
+const fields = {
+  persons: [
+    { key:'personalId', label:'用户ID', readonly:true },
+    { key:'name', label:'姓名', required:true },
+    { key:'gender', label:'性别', type:'select', options:[{v:0,t:'女'},{v:1,t:'男'}], default:0 },
+    { key:'institute', label:'学院' },
+    { key:'grade', label:'年级' },
+    { key:'campus', label:'校区', type:'select', options:[{v:0,t:'中关村校区'},{v:1,t:'玉泉路校区'},{v:3,t:'雁栖湖校区'},{v:4,t:'京内其他地区'},{v:5,t:'京外其他地区'}], default:0 },
+    { key:'section', label:'声部', type:'select', options:[{v:0,t:'民族管乐声部'},{v:1,t:'弹拨一组'},{v:2,t:'弹拨二组'},{v:3,t:'胡琴声部'},{v:4,t:'提琴声部'},{v:5,t:'西洋木管声部'},{v:6,t:'西洋铜管声部'},{v:7,t:'低音声部'},{v:8,t:'钢琴声部'},{v:9,t:'打击声部'},{v:10,t:'无声部'}], default:0 },
+    { key:'job', label:'职位', type:'select', options:[{v:0,t:'普通成员'},{v:1,t:'声部长'}], default:0 },
+    { key:'isManager', label:'是否管理人员', type:'select', options:[{v:0,t:'否'},{v:1,t:'是'}], default:0 },
+    { key:'managerJob', label:'管理职责', type:'select', options:[{v:0,t:'普通干事'},{v:1,t:'团长'},{v:2,t:'业务副团长'},{v:3,t:'人事副团长'},{v:4,t:'后勤组组长'},{v:5,t:'宣传组组长'},{v:6,t:'学生指挥'},{v:7,t:'指挥助理'},{v:8,t:'指挥'}], default:0 },
+    { key:'instrument', label:'乐器（多个用分号分隔）' },
+    { key:'isMaster', label:'声部首席', type:'select', options:[{v:0,t:'否'},{v:1,t:'是'}], default:0 }
+  ],
+  events: [
+    { key:'eventId', label:'活动ID', readonly:true },
+    { key:'startTime', label:'起始时间', type:'datetime-local' },
+    { key:'endTime', label:'结束时间', type:'datetime-local' },
+    { key:'title', label:'标题' },
+    { key:'appendix', label:'备注', type:'textarea' }
+  ],
+  attendance: [
+    { key:'personalId', label:'用户ID', required:true },
+    { key:'eventId', label:'活动ID', required:true },
+    { key:'title', label:'标题' }
+  ],
+  scores: [
+    { key:'title', label:'乐谱名', required:true },
+    { key:'isTotal', label:'是否为总谱', type:'select', options:[{v:0,t:'分谱'},{v:1,t:'总谱'}], default:0 },
+    { key:'section', label:'所属声部' },
+    { key:'file', label:'PDF 文件', type:'file', accept:'.pdf' }
+  ],
+  logistics: [
+    { key:'itemId', label:'物品ID', readonly:true },
+    { key:'name', label:'物品名', required:true },
+    { key:'campus', label:'校区', type:'select', options:[{v:0,t:'中关村校区'},{v:1,t:'玉泉路校区'},{v:3,t:'雁栖湖校区'}], default:0 },
+    { key:'address', label:'位置' },
+    { key:'image', label:'图片', type:'file', accept:'image/*' },
+    { key:'isPublic', label:'是否公用', type:'select', options:[{v:0,t:'私有'},{v:1,t:'公用'}], default:1 },
+    { key:'belongsToId', label:'所属人ID(私有)' }
+  ]
+};
+
+function $(s){return document.querySelector(s)}
+function $$(s){return document.querySelectorAll(s)}
+
+function showToast(msg,type='success'){
+  const t=$('#toast');t.innerHTML=`<div class="toast ${type}">${msg}</div>`;
+  setTimeout(()=>t.innerHTML='',3000);
+}
+
+function openModal(html){$('#modal').classList.add('active');$('#modalBody').innerHTML=html}
+function closeModal(){$('#modal').classList.remove('active')}
+$('#modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
+
+// Navigation
+$$('.sidebar a').forEach(a=>a.addEventListener('click',e=>{
+  e.preventDefault();
+  $$('.sidebar a').forEach(x=>x.classList.remove('active'));
+  a.classList.add('active');
+  const page=a.dataset.page;
+  $$('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  loadPage(page);
+}));
+
+async function api(path,opts={}){
+  const r=await fetch(API+path,{headers:{'Content-Type':'application/json'},...opts});
+  return r.json();
+}
+
+function buildToolbar(page,searchFields){
+  let html='<div class="toolbar">';
+  searchFields.forEach(f=>{
+    if(f.type==='select'){
+      html+=`<select id="sf-${page}-${f.key}" onchange="loadPage('${page}')"><option value="">${f.label}</option>`;
+      f.options.forEach(o=>html+=`<option value="${o.v}">${o.t}</option>`);
+      html+=`</select>`;
+    } else {
+      html+=`<input id="sf-${page}-${f.key}" placeholder="${f.label}" onkeydown="if(event.key==='Enter')loadPage('${page}')">`;
+    }
+  });
+  html+=`<button onclick="loadPage('${page}')">🔍 搜索</button>`;
+  html+=`<button class="btn-green" onclick="showForm('${page}')">＋ 新增</button>`;
+  html+=`</div>`;
+  return html;
+}
+
+function buildTable(data,columns,fieldLookup){
+  if(!data||!data.length)return'<p style="padding:20px;text-align:center;color:#999">暂无数据</p>';
+  let html='<table><tr>'+columns.map(c=>`<th>${c.label}</th>`).join('')+'<th>操作</th></tr>';
+  data.forEach(row=>{
+    html+='<tr>'+columns.map(c=>{
+      // 支持自定义渲染函数
+      if(c.render)return `<td>${c.render(row,fieldLookup)}</td>`;
+      let v=row[c.key];if(v===null||v===undefined)v='';
+      if(c.key==='isTotal')v=v==1?'总谱':'分谱';
+      if(c.key==='isPublic')v=v==1?'公用':'私有';
+      // 数值字段转标签
+      if(fieldLookup && fieldLookup[c.key]){
+        const opt=fieldLookup[c.key].find(o=>String(o.v)===String(v));
+        if(opt)v=opt.t;
+      }
+      return `<td>${v}</td>`;
+    }).join('')+`<td class="actions">
+      <button class="btn-edit" onclick="showForm('${columns[0]._page}',${JSON.stringify(row).replace(/"/g,"'")})">编辑</button>
+      <button class="btn-del" onclick="delRow('${columns[0]._page}','${row[columns.find(c=>c._id).key]}')">删除</button>
+    </td></tr>`;
+  });
+  html+='</table>';
+  return html;
+}
+
+function buildPagination(page,total,limit){
+  const totalPages=Math.ceil(total/limit)||1;
+  return `<div class="pagination"><span>共 ${total} 条</span>
+    <div><button onclick="goPage('${page}',${state[page].page-1})" ${state[page].page<=1?'disabled':''}>上一页</button>
+    <span style="margin:0 12px">${state[page].page}/${totalPages}</span>
+    <button onclick="goPage('${page}',${state[page].page+1})" ${state[page].page>=totalPages?'disabled':''}>下一页</button></div></div>`;
+}
+
+function goPage(page,p){state[page].page=p;loadPage(page)}
+
+async function loadPage(page){
+  const el=document.getElementById('page-'+page);
+  const search={};
+  (fields[page]||[]).forEach(f=>{
+    const inp=document.getElementById('sf-'+page+'-'+f.key);
+    if(inp&&inp.value)search[f.key]=inp.value;
+  });
+  search.page=state[page].page;
+  search.limit=20;
+  const qs=Object.entries(search).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
+  const res=await api('/'+page+'?'+qs);
+  if(!res.success){el.innerHTML='<p>加载失败</p>';return;}
+
+  let html='';
+  const colMap={
+    persons:[{key:'personalId',label:'用户ID'},{key:'name',label:'姓名'},{key:'gender',label:'性别'},{key:'section',label:'声部'},{key:'campus',label:'校区'},{key:'job',label:'职位'},{key:'isManager',label:'管理人员'},{key:'managerJob',label:'管理职务',render:(row,lu)=>row.isManager==1?(lu&&lu.managerJob?((lu.managerJob.find(o=>String(o.v)===String(row.managerJob))||{}).t||row.managerJob):row.managerJob):'无'},{key:'isMaster',label:'首席'}],
+    events:[{key:'eventId',label:'活动ID'},{key:'startTime',label:'起始时间',render:(r)=>r.startTime?r.startTime.replace('T',' ').replace(/\.\d+Z$/,''):''},{key:'endTime',label:'结束时间',render:(r)=>r.endTime?r.endTime.replace('T',' ').replace(/\.\d+Z$/,''):''},{key:'title',label:'标题'}],
+    attendance:[{key:'attendanceId',label:'ID'},{key:'personalId',label:'用户ID'},{key:'eventId',label:'活动ID'},{key:'title',label:'标题'}],
+    scores:[{key:'scoreId',label:'ID'},{key:'title',label:'乐谱名'},{key:'isTotal',label:'类型'},{key:'section',label:'声部'},{key:'filehash',label:'PDF',render:(r)=>r.filehash?`<a href="/api/scores/${r.scoreId}/file" target="_blank" class="btn" style="padding:2px 10px;font-size:12px;background:#1890ff">📄 预览</a>`:'<span style="color:#999">无文件</span>'}],
+    logistics:[{key:'itemId',label:'物品ID'},{key:'name',label:'物品名'},{key:'campus',label:'校区'},{key:'address',label:'位置'},{key:'isPublic',label:'状态'},{key:'belongsToId',label:'所属人'},{key:'imagehash',label:'图片',render:(r)=>r.imagehash?`<img src="/api/logistics/${r.itemId}/image" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openLightbox('/api/logistics/${r.itemId}/image')" title="点击查看大图">`:'<span style="color:#999">无</span>'}]
+  };
+  const cols=colMap[page].map(c=>({...c,_page:page,_id:c.key===(page==='scores'?'scoreId':page==='logistics'?'itemId':page==='attendance'?'attendanceId':Object.keys(fields[page][0]?{personalId:''}:{})[0])}));
+  cols[0]._id=true;
+
+  const searchFields=page==='persons'?[{key:'name',label:'姓名'},{key:'section',label:'声部',type:'select',options:[{v:0,t:'民族管乐'},{v:1,t:'弹拨一组'},{v:2,t:'弹拨二组'},{v:3,t:'胡琴'},{v:4,t:'提琴'},{v:5,t:'西洋木管'},{v:6,t:'西洋铜管'},{v:7,t:'低音'},{v:8,t:'钢琴'},{v:9,t:'打击'},{v:10,t:'无声部'}]},{key:'campus',label:'校区',type:'select',options:[{v:0,t:'中关村'},{v:1,t:'玉泉路'},{v:3,t:'雁栖湖'},{v:4,t:'京内其他'},{v:5,t:'京外其他'}]},{key:'isManager',label:'管理人员',type:'select',options:[{v:0,t:'否'},{v:1,t:'是'}]},{key:'isMaster',label:'首席',type:'select',options:[{v:0,t:'否'},{v:1,t:'是'}]}]:
+    page==='events'?[{key:'title',label:'标题'}]:
+    page==='attendance'?[{key:'personalId',label:'用户ID'},{key:'eventId',label:'活动ID'}]:
+    page==='scores'?[{key:'title',label:'乐谱名'},{key:'section',label:'声部'}] :
+    [{key:'name',label:'物品名'},{key:'campus',label:'校区'}];
+
+  // 为persons/logistics构建数值→标签映射
+  let fieldLookup=null;
+  const lookupPages={persons:true,logistics:true};
+  if(lookupPages[page]){
+    fieldLookup={};
+    fields[page].forEach(f=>{
+      if(f.options)fieldLookup[f.key]=f.options;
+    });
+  }
+
+  html+=buildToolbar(page,searchFields);
+  html+=buildTable(res.data,cols,fieldLookup);
+  html+=buildPagination(page,res.total,res.limit);
+  el.innerHTML=html;
+}
+
+function showForm(page,data){
+  const isEdit=!!data;
+  const flds=fields[page];
+  let html=`<h2>${isEdit?'编辑':'新增'}${ {'persons':'成员','events':'活动','attendance':'出勤','scores':'乐谱','logistics':'物品'}[page] }</h2><form id="form">`;
+  let rows=[];
+  // 动态默认值：新增活动时
+  let nowStr='',now3hStr='';
+  if(page==='events'&&!isEdit){
+    const now=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+    nowStr=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const n3=new Date(now.getTime()+3*3600000);
+    now3hStr=`${n3.getFullYear()}-${pad(n3.getMonth()+1)}-${pad(n3.getDate())}T${pad(n3.getHours())}:${pad(n3.getMinutes())}`;
+  }
+  // 收集需要联动的字段，打开弹窗后激活
+  let toggleAfterOpen=null;
+  if(page==='persons')toggleAfterOpen='toggleManagerJob';
+  else if(page==='logistics')toggleAfterOpen='toggleOwner';
+  else if(page==='events')toggleAfterOpen='syncEndTimeMin';
+  flds.forEach((f,i)=>{
+    // 新增时跳过 eventId（自动生成）
+    if(!isEdit && f.readonly) return;
+    let defaultVal=f.default!==undefined?f.default:'';
+    // 活动动态默认值
+    if(page==='events'&&!isEdit){
+      if(f.key==='startTime')defaultVal=nowStr;
+      if(f.key==='endTime')defaultVal=now3hStr;
+      if(f.key==='title'&&!defaultVal)defaultVal='乐团活动';
+    }
+    const val=isEdit?data[f.key]:defaultVal;
+    let inp;
+    if(f.readonly){
+      inp=`<input id="f-${f.key}" type="text" value="${val||''}" readonly style="background:#f5f5f5">`;
+    } else if(f.type==='file'){
+      // 编辑时不显示文件上传
+      if(isEdit){return;}
+      inp=`<input id="f-${f.key}" type="file" accept="${f.accept||''}">`;
+    } else if(f.type==='textarea'){
+      inp=`<textarea id="f-${f.key}">${val||''}</textarea>`;
+    } else if(f.type==='select'){
+      let extra='';
+      if(page==='persons'&&f.key==='isManager')extra=' onchange="toggleManagerJob()"';
+      if(page==='logistics'&&f.key==='isPublic')extra=' onchange="toggleOwner()"';
+      if(page==='events'&&f.key==='startTime')extra=' onchange="syncEndTimeMin()"';
+      inp=`<select id="f-${f.key}"${extra}>${f.options.map(o=>`<option value="${o.v}" ${String(val)==String(o.v)?'selected':''}>${o.t}</option>`).join('')}</select>`;
+    } else {
+      inp=`<input id="f-${f.key}" type="${f.type||'text'}" value="${val||''}" ${f.required?'required':''}>`;
+    }
+    rows.push({key:f.key,label:f.label+(f.required?' *':''),html:inp});
+  });
+  rows.forEach((r,i)=>{
+    if(i%2===0)html+='<div class="form-row">';
+    html+=`<div class="form-group" id="fg-${r.key}"><label>${r.label}</label>${r.html}</div>`;
+    if(i%2===1||i===rows.length-1)html+='</div>';
+  });
+  html+=`</form><div class="form-actions">
+    <button class="btn-cancel" onclick="closeModal()">取消</button>
+    <button class="btn-green" onclick="submitForm('${page}','${isEdit?data[flds[0].key]:''}')">${isEdit?'保存':'创建'}</button>
+  </div>`;
+  openModal(html);
+  // 激活联动（innerHTML 已写入，DOM 可用）
+  if(toggleAfterOpen){const fn=window[toggleAfterOpen];if(fn)setTimeout(fn,0);}
+}
+
+async function submitForm(page,id){
+  const flds=fields[page];
+  const body={};
+  const formData=new FormData();
+  let hasFile=false,valid=true;
+  const intKeys=['gender','campus','section','job','isManager','managerJob','isMaster','isTotal','isPublic','year','month','date'];
+  flds.forEach(f=>{
+    const el=document.getElementById('f-'+f.key);
+    if(!el||f.readonly)return;
+    // 跳过被隐藏的字段（如私有物品所属人）
+    if(el.closest && el.closest('.form-group') && el.closest('.form-group').style.display==='none')return;
+    if(f.type==='file'){
+      if(el.files&&el.files[0]){formData.append(f.key,el.files[0]);hasFile=true;}
+      return;
+    }
+    const val=el.value;
+    if(f.required&&!val){valid=false;return}
+    if(intKeys.includes(f.key))body[f.key]=parseInt(val||0);
+    else if(f.type==='number')body[f.key]=val?parseInt(val):null;
+    else body[f.key]=val||null;
+  });
+  if(!valid){showToast('请填写所有必填项','error');return;}
+  // 非管理人员强制管理职责=0
+  if(body.isManager===0)body.managerJob=0;
+  // 活动起止时间校验
+  if(page==='events' && body.startTime && body.endTime && body.startTime >= body.endTime){
+    showToast('起始时间必须早于结束时间','error');return;
+  }
+
+  const isEdit=!!id;
+  try{
+    // 文件上传走 FormData
+    if(hasFile){
+      Object.entries(body).forEach(([k,v])=>formData.append(k,v));
+      const res=await fetch(API+'/'+page+'/upload',{method:'POST',body:formData});
+      const data=await res.json();
+      if(!data.success){showToast(data.message,'error');return;}
+    } else if(isEdit){
+      const res=await api('/'+page+'/'+id,{method:'PUT',body:JSON.stringify(body)});
+      if(!res.success){showToast(res.message,'error');return;}
+    } else {
+      const res=await api('/'+page,{method:'POST',body:JSON.stringify(body)});
+      if(!res.success){showToast(res.message,'error');return;}
+    }
+    showToast(isEdit?'更新成功':'创建成功');
+    closeModal();
+    loadPage(page);
+  }catch(e){showToast('操作失败','error')}
+}
+
+async function delRow(page,id){
+  if(!confirm('确认删除该记录？'))return;
+  const res=await api('/'+page+'/'+id,{method:'DELETE'});
+  if(res.success){showToast('已删除');loadPage(page)}
+  else showToast(res.message,'error');
+}
+
+// Init
+loadPage('persons');
+</script>
+</body>
+</html>
