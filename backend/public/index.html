@@ -6,61 +6,88 @@
 <title>乐团管理平台</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f2f5;color:#333}
-.header{background:#1a1a2e;color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px}
-.header h1{font-size:20px;font-weight:600}
-.header .env{font-size:12px;background:#e94560;padding:2px 10px;border-radius:10px}
-.container{display:flex;min-height:calc(100vh-60px)}
-.sidebar{width:200px;background:#16213e;padding:0;flex-shrink:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f2f5;color:#333;min-height:100vh}
+.header{background:#1a1a2e;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100}
+.header h1{font-size:18px;font-weight:600;flex:1}
+.header .env{font-size:11px;background:#e94560;padding:2px 10px;border-radius:10px;display:none}
+.header .menu-btn{display:block;background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0 4px}
+.container{display:flex;min-height:calc(100vh - 52px)}
+.sidebar{width:200px;background:#16213e;flex-shrink:0;transition:transform .3s}
 .sidebar a{display:block;padding:14px 20px;color:#a8b2d1;text-decoration:none;font-size:14px;border-left:3px solid transparent;transition:all .2s}
 .sidebar a:hover,.sidebar a.active{background:#1a1a3e;color:#fff;border-left-color:#e94560}
-.main{flex:1;padding:24px}
+.main{flex:1;padding:16px 20px;min-width:0;overflow-x:hidden}
 .page{display:none}
 .page.active{display:block}
-.toolbar{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
-.toolbar input,.toolbar select{padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;background:#fff}
-.toolbar button,.btn{padding:8px 16px;border:none;border-radius:6px;font-size:14px;cursor:pointer;background:#e94560;color:#fff;transition:background .2s}
+.toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.toolbar input,.toolbar select{padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;background:#fff;max-width:180px}
+.toolbar button,.btn{padding:8px 16px;border:none;border-radius:6px;font-size:14px;cursor:pointer;background:#e94560;color:#fff;transition:background .2s;white-space:nowrap}
 .toolbar button:hover{background:#c73650}
 .btn-secondary{background:#4a4a6a}
 .btn-secondary:hover{background:#3a3a5a}
 .btn-green{background:#2d8a4e}
 .btn-green:hover{background:#23703f}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08)}
-th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #f0f0f0;font-size:13px}
+.table-wrap{overflow-x:auto;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+table{width:100%;border-collapse:collapse;background:#fff;min-width:600px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:13px}
 th{background:#fafafa;font-weight:600;color:#666;white-space:nowrap}
 tr:hover{background:#f8f9ff}
-.actions{display:flex;gap:4px}
-.actions button{padding:4px 10px;border:none;border-radius:4px;cursor:pointer;font-size:12px}
+.actions{display:flex;gap:4px;flex-wrap:nowrap}
+.actions button{padding:4px 10px;border:none;border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap}
 .btn-edit{background:#1890ff;color:#fff}
 .btn-del{background:#ff4d4f;color:#fff}
-.pagination{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:#666}
+.pagination{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:#666;flex-wrap:wrap;gap:8px}
 .pagination button{padding:4px 12px;border:1px solid #d9d9d9;border-radius:4px;background:#fff;cursor:pointer;font-size:13px}
 .pagination button:disabled{opacity:.5;cursor:default}
 .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:1000}
-.modal-overlay.active{display:flex;align-items:center;justify-content:center}
-.modal{background:#fff;border-radius:12px;padding:24px;width:520px;max-width:90vw;max-height:80vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.modal-overlay.active{display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:#fff;border-radius:12px;padding:24px;width:520px;max-width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 10px 40px rgba(0,0,0,.2)}
 .modal h2{margin-bottom:16px;font-size:18px}
 .form-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px}
-.form-group{flex:1;min-width:180px}
+.form-group{flex:1;min-width:160px}
 .form-group label{display:block;font-size:12px;color:#888;margin-bottom:4px}
 .form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px}
 .form-group textarea{resize:vertical;min-height:60px}
-.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
 .form-actions button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-size:14px}
 .btn-cancel{background:#f0f0f0;color:#333}
-.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:2000;animation:slideIn .3s;max-width:400px}
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;color:#fff;font-size:14px;z-index:2000;animation:slideIn .3s;max-width:calc(100vw-40px)}
 .toast.success{background:#2d8a4e}
 .toast.error{background:#e94560}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
 .lightbox-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.9);z-index:3000;justify-content:center;align-items:center}
 .lightbox-overlay.active{display:flex}
-.lightbox-img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:4px}
-.lightbox-close{position:absolute;top:16px;right:24px;font-size:36px;color:#fff;cursor:pointer;font-weight:700;line-height:1;z-index:3001}
+.lightbox-img{max-width:92vw;max-height:92vh;object-fit:contain;border-radius:4px}
+.lightbox-close{position:absolute;top:12px;right:16px;font-size:36px;color:#fff;cursor:pointer;font-weight:700;line-height:1;z-index:3001}
 .lightbox-close:hover{color:#e94560}
+
+/* 响应式：平板及以下 */
+@media(max-width:900px){
+  .sidebar{position:fixed;top:52px;left:0;bottom:0;z-index:99;transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .main{padding:12px}
+  .toolbar input,.toolbar select{max-width:140px;font-size:13px}
+  .modal{width:100%;border-radius:12px 12px 0 0;margin-top:auto;max-height:90vh}
+  .modal-overlay.active{align-items:flex-end}
+  .header .menu-btn{display:block}
+}
+@media(max-width:600px){
+  .header h1{font-size:16px}
+  .toolbar input,.toolbar select{max-width:100%;width:100%}
+  .toolbar{flex-direction:column;align-items:stretch}
+  .toolbar button{width:100%}
+  .form-group{min-width:100%}
+  .pagination{flex-direction:column;align-items:center}
+  th,td{padding:6px 8px;font-size:12px}
+  .sidebar a{padding:12px 16px;font-size:13px}
+}
+@media(min-width:901px){
+  .header .menu-btn{display:none}
+}
 </style>
 </head>
 <body>
 <div class="header">
+  <button class="menu-btn" onclick="toggleSidebar()">☰</button>
   <h1>🎵 乐团管理平台</h1>
   <span class="env">Orchestra v1.0</span>
 </div>
@@ -120,14 +147,26 @@ function closeLightbox(){
   document.getElementById('lightbox').classList.remove('active');
   document.getElementById('lightboxImg').src='';
 }
+function toggleSidebar(){
+  document.querySelector('.sidebar').classList.toggle('open');
+}
+// 点击主区域关闭侧栏（移动端）
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelector('.main').addEventListener('click',()=>{
+    if(window.innerWidth<=900)document.querySelector('.sidebar').classList.remove('open');
+  });
+});
 
 // === 出勤管理：查找确认 ===
 let _attLookupState={};
 async function attLookup(){
   const pn=document.getElementById('f-personName').value.trim();
   const et=document.getElementById('f-eventTitle').value.trim();
-  if(!pn||!et){showToast('请填写成员姓名和活动标题','error');return;}
-  const res=await api('/attendance/lookup',{method:'POST',body:JSON.stringify({personName:pn,eventTitle:et})});
+  if(!pn&&!et){showToast('请至少填写成员姓名或活动标题','error');return;}
+  const body={};
+  if(pn)body.personName=pn;
+  if(et)body.eventTitle=et;
+  const res=await api('/attendance/lookup',{method:'POST',body:JSON.stringify(body)});
   if(!res.success){showToast('查询失败','error');return;}
   const el=document.getElementById('att-lookup-result');
   const cf=document.getElementById('att-confirmed');
@@ -180,11 +219,15 @@ async function attLookup(){
   }
   el.innerHTML=html;
   // 如果唯一，直接填入确认区
-  if(personId&&eventId&&!needPick){
-    document.getElementById('f-personalId').value=personId;
-    document.getElementById('f-eventId').value=eventId;
-    document.getElementById('f-personDisplay').value=personLabel;
-    document.getElementById('f-eventDisplay').value=eventLabel;
+  if(!needPick){
+    if(personId){
+      document.getElementById('f-personalId').value=personId;
+      document.getElementById('f-personDisplay').value=personLabel;
+    }
+    if(eventId){
+      document.getElementById('f-eventId').value=eventId;
+      document.getElementById('f-eventDisplay').value=eventLabel;
+    }
     cf.style.display='block';
     _attLookupState={};
   } else {
@@ -387,7 +430,7 @@ async function loadPage(page){
   }
 
   html+=buildToolbar(page,searchFields);
-  html+=buildTable(res.data,cols,fieldLookup);
+  html+='<div class="table-wrap">' + buildTable(res.data,cols,fieldLookup) + '</div>';
   html+=buildPagination(page,res.total,res.limit);
   el.innerHTML=html;
 }
