@@ -46,12 +46,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .profile-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:32px;max-width:600px;margin:0 auto}
 .profile-avatar{text-align:center;margin-bottom:24px;position:relative}
 .profile-avatar img{width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,.15)}
-.profile-avatar .edit-badge{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:4px 16px;border-radius:20px;cursor:pointer;white-space:nowrap}
-.profile-avatar .edit-badge:hover{background:#e94560}
+.profile-avatar .edit-badge{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);background:#2d8a4e;color:#fff;font-size:13px;padding:6px 18px;border-radius:20px;cursor:pointer;white-space:nowrap;border:none;transition:background .2s}
+.profile-avatar .edit-badge:hover{background:#23703f}
 .profile-field{display:flex;padding:12px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
 .profile-field .pl{width:120px;color:#888;flex-shrink:0}
 .profile-field .pv{flex:1;color:#333}
-.profile-actions{text-align:center;margin-top:24px}
+.profile-actions{text-align:center;margin-top:28px}
+.profile-actions button{padding:10px 32px;font-size:15px;font-weight:600}
 /* 裁剪弹窗 */
 .crop-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:4000;justify-content:center;align-items:center;padding:20px}
 .crop-overlay.active{display:flex}
@@ -270,7 +271,7 @@ function showRegister(){
       </div>`;
   REG_FIELDS.forEach((f,i)=>{
     let extra='';
-    if(f.key==='isManager')extra=' onchange="document.getElementById(\\'reg-managerJob\\')?.closest(\\'.form-group\\').style.display=this.value===\\'1\\'?\\'\\':\\'none\\';this.dispatchEvent(new Event(\\'change\\'))"';
+    if(f.key==='isManager')extra=' onchange="var r=document.getElementById(\'reg-managerJob\');if(r){r.closest(\'.form-group\').style.display=this.value===\'1\'?\'\':\'none\';}"';
     const inp=f.type==='select'?`<select id="reg-${f.key}"${extra}>${f.options.map(o=>`<option value="${o.v}" ${f.default===o.v?'selected':''}>${o.t}</option>`).join('')}</select>`:
       `<input id="reg-${f.key}" type="${f.type||'text'}" ${f.required?'required':''} placeholder="请输入${f.label}">`;
     h+=`<div class="form-group"><label>${f.label}${f.required?' *':''}</label>${inp}</div>`;
@@ -350,11 +351,18 @@ confirmCrop=async function(){
       fd.append('avatar',blob,'avatar.jpg');
       const res=await fetch(API+'/auth/avatar',{method:'POST',body:fd});
       const data=await res.json();
-      if(data.success){showToast('头像已更新');afterLogin(document.getElementById('dropName').textContent);}
+      if(data.success){
+        showToast('头像已更新');
+        afterLogin(document.getElementById('dropName').textContent);
+        // 同时刷新个人信息页面的头像
+        const pa=document.getElementById('profileAvatar');
+        if(pa)pa.src='/api/auth/avatar?'+Date.now();
+      }
       else showToast(data.message,'error');
     },'image/jpeg',0.9);
   }
 };
+function afterLogin(name){
   // 刷新头像&用户信息
   const ts=Date.now();
   document.getElementById('avatarThumb').src='/api/auth/avatar?'+ts;
