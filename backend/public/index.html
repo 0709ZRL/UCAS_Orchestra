@@ -139,9 +139,9 @@ tr:hover{background:#f8f9ff}
 </style>
 </head>
 <body>
-<div id="auth-page" class="auth-page"></div>
-<div id="app" style="display:none">
-<div id="homepage">
+<div id="auth-page" class="auth-page active"></div>
+
+<div id="homepage" style="display:none">
   <header class="home-header">
     <div class="logo">
       <h1>🎵 UCAS 乐团</h1>
@@ -151,7 +151,7 @@ tr:hover{background:#f8f9ff}
       <a onclick="scrollToSection(0)">排练通知</a>
       <a onclick="scrollToSection(1)">演出通知</a>
       <a onclick="scrollToSection(2)">乐团新闻</a>
-      <a class="login-btn" onclick="switchToLogin()">登录管理</a>
+      <a class="login-btn" onclick="goToAdmin()">管理后台</a>
     </div>
   </header>
   <div class="marquee-wrap" id="marqueeWrap">
@@ -160,7 +160,7 @@ tr:hover{background:#f8f9ff}
   <div class="sections" id="sectionsContainer"></div>
   <footer class="home-footer">&copy; 2026 中国科学院大学乐团 &middot; UCAS Orchestra</footer>
 </div>
-<div id="auth-page" class="auth-page"></div>
+
 <div id="app" style="display:none">
 <div class="header">
   <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -287,8 +287,16 @@ async function showArticleDetail(id){
 }
 function switchToLogin(){
   document.getElementById('homepage').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
   document.getElementById('auth-page').classList.add('active');
   showLogin();
+}
+function goToAdmin(){
+  document.getElementById('homepage').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  const active=document.querySelector('.page.active');
+  if(active&&active.id!=='page-profile')loadPage(active.id.replace('page-',''));
+  else loadPage('persons');
 }
 function goHome(){
   document.getElementById('app').style.display = 'none';
@@ -326,7 +334,7 @@ function toggleSidebar(){
 }
 // 点击主区域关闭侧栏（移动端）
 document.addEventListener('DOMContentLoaded',()=>{
-  loadHomepage();
+  checkAuth();
   document.querySelector('.main')?.addEventListener('click',()=>{
     if(window.innerWidth<=900)document.querySelector('.sidebar')?.classList.remove('open');
   });
@@ -479,29 +487,27 @@ function afterLogin(name){
     this.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#e0e0e0"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="#999">👤</text></svg>');
   };
   document.getElementById('dropName').textContent=name;
-  // 获取 personalId
   api('/auth/me').then(r=>{
     if(r.success)document.getElementById('dropId').textContent='ID: '+r.data.personalId;
   });
-  document.getElementById('homepage').style.display='none';
+  // 登录成功后进入首页
   document.getElementById('auth-page').classList.remove('active');
-  document.getElementById('app').style.display='block';
-  const active=document.querySelector('.page.active');
-  if(active&&active.id!=='page-profile')loadPage(active.id.replace('page-',''));
-  else loadPage('persons');
+  document.getElementById('homepage').style.display = 'block';
+  document.getElementById('app').style.display = 'none';
+  loadHomepage();
 }
 async function checkAuth(){
   const res=await api('/auth/me');
   if(res.success){afterLogin(res.data.name);}
-  // 未登录则留在首页
+  else showLogin();
 }
 async function logout(){
   if(!confirm('确定要退出登录吗？'))return;
   await api('/auth/logout',{method:'POST'});
-  document.getElementById('app').style.display='none';
-  document.getElementById('auth-page').classList.remove('active');
-  document.getElementById('homepage').style.display='block';
-  loadHomepage();
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('homepage').style.display = 'none';
+  document.getElementById('auth-page').classList.add('active');
+  showLogin();
 }
 
 // === 个人信息页 ===
