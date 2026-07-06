@@ -885,15 +885,29 @@ async function renderHomepage(el){
   }
   html += '</div></div>';
   el.innerHTML = html;
-  // 点击文章弹详情
+  // 点击文章跳转详情页
   window.showArticleDetail = async function(id){
+    if(!id)return;
+    // 确保 page-home 存在并激活
+    const homePage = document.getElementById('page-home');
+    if(!homePage) { loadPage('home'); return; }
+    $$('.sidebar a').forEach(x=>x.classList.remove('active'));
+    $$('.page').forEach(p=>p.classList.remove('active'));
+    homePage.classList.add('active');
+    homePage.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px;margin-bottom:20px">⏳</div><div>加载中...</div></div>';
     const res = await fetch('/api/articles/'+id).then(r=>r.json());
-    if(!res.success){showToast('加载失败','error');return;}
+    if(!res.success){homePage.innerHTML='<p style="padding:40px;text-align:center;color:#999">加载失败</p>';return;}
     const a = res.data;
-    document.getElementById('modalBody').innerHTML = '<div style="padding:10px 0"><h2 style="margin-bottom:8px">'+escHtml(a.title)+'</h2>'
-      + '<div style="font-size:13px;color:#999;margin-bottom:12px"><span class="mtag '+TYPE_TAGS[a.type]+'">'+TYPE_LABELS[a.type]+'</span> '+(a.createdAt||'').replace('T',' ').substring(0,16)+'</div>'
-      + '<div style="font-size:15px;line-height:1.8;color:#444">'+escHtml(a.content||'无内容').replace(/\n/g,'<br>')+'</div></div>';
-    document.getElementById('modal').classList.add('active');
+    homePage.innerHTML = '<div style="max-width:800px;margin:0 auto;background:#fff;border-radius:10px;padding:32px;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
+      + '<div style="margin-bottom:16px"><button class="btn" onclick="loadPage(\'home\')" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回首页</button></div>'
+      + '<h2 style="font-size:22px;margin-bottom:8px">'+escHtml(a.title)+'</h2>'
+      + '<div style="font-size:14px;color:#999;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #f0f0f0">'
+        + '<span class="mtag '+TYPE_TAGS[a.type]+'" style="margin-right:10px">'+TYPE_LABELS[a.type]+'</span>'
+        + (a.createdAt||'').replace('T',' ').substring(0,16)
+      + '</div>'
+      + '<div style="font-size:15px;line-height:1.9;color:#444;white-space:pre-wrap">'+escHtml(a.content||'无内容')+'</div>'
+      + '<div style="margin-top:24px"><button class="btn" onclick="loadPage(\'home\')" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回首页</button></div>'
+      + '</div>';
   };
 }
 function escHtml(s){return String(s).replace(/[&<>]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m]||m;})}
