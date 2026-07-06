@@ -139,27 +139,6 @@ tr:hover{background:#f8f9ff}
 </head>
 <body>
 <div id="auth-page" class="auth-page"></div>
-
-<div id="homepage" style="display:none">
-  <header class="home-header">
-    <div class="logo">
-      <h1>🎵 UCAS 乐团</h1>
-      <span>中国科学院大学乐团管理平台</span>
-    </div>
-    <div class="nav-links">
-      <a onclick="scrollToSection(0)">排练通知</a>
-      <a onclick="scrollToSection(1)">演出通知</a>
-      <a onclick="scrollToSection(2)">乐团新闻</a>
-      <a class="login-btn" onclick="goToAdmin()">管理后台</a>
-    </div>
-  </header>
-  <div class="marquee-wrap" id="marqueeWrap">
-    <div class="marquee-inner" id="marqueeInner"></div>
-  </div>
-  <div class="sections" id="sectionsContainer"></div>
-  <footer class="home-footer">&copy; 2026 中国科学院大学乐团 &middot; UCAS Orchestra</footer>
-</div>
-
 <div id="app" style="display:none">
 <div class="header">
   <button class="menu-btn" onclick="toggleSidebar()">☰</button>
@@ -174,7 +153,6 @@ tr:hover{background:#f8f9ff}
           <div id="dropId" style="font-size:12px;color:#999;margin-top:2px"></div>
         </div>
         <a onclick="showProfile()">👤 个人信息</a>
-        <a onclick="goHome()">🏠 返回首页</a>
         <a onclick="logout()">🚪 退出登录</a>
       </div>
     </div>
@@ -187,7 +165,6 @@ tr:hover{background:#f8f9ff}
     <a href="#" data-page="attendance">📋 出勤管理</a>
     <a href="#" data-page="scores">🎼 乐谱管理</a>
     <a href="#" data-page="logistics">📦 后勤管理</a>
-    <a href="#" data-page="articles">📰 文章管理</a>
     <a href="#" data-page="profile">👤 个人信息</a>
   </nav>
   <div class="main">
@@ -201,7 +178,6 @@ tr:hover{background:#f8f9ff}
     <div id="page-scores" class="page"></div>
     <!-- Logistics -->
     <div id="page-logistics" class="page"></div>
-    <div id="page-articles" class="page"></div>
     <div id="page-profile" class="page"></div>
   </div>
 </div>
@@ -227,84 +203,6 @@ const API = '/api';
 const state = { persons:{page:1}, events:{page:1}, attendance:{page:1}, scores:{page:1}, logistics:{page:1} };
 
 // 全局联动函数
-// ===== 首页功能 =====
-const TYPE_LABELS = ['排练通知','演出通知','乐团新闻'];
-const TYPE_TAGS = ['t0','t1','t2'];
-
-async function loadHomepage(){
-  const [marqueeRes, sectionRes] = await Promise.all([
-    fetch('/api/articles?limit=6').then(r=>r.json()),
-    Promise.all([0,1,2].map(t=>fetch('/api/articles?type='+t+'&limit=10').then(r=>r.json())))
-  ]);
-  const marqueeEl = document.getElementById('marqueeInner');
-  if(marqueeRes && marqueeRes.success && marqueeRes.data && marqueeRes.data.length){
-    const items = marqueeRes.data;
-    let html = '';
-    for(let round=0; round<3; round++){
-      items.forEach(a => {
-        html += '<div class="marquee-item" onclick="showArticleDetail('+a.articleId+')">'
-          + '<span class="tag '+TYPE_TAGS[a.type]+'">'+TYPE_LABELS[a.type]+'</span>'
-          + '<span class="text">'+a.title+'</span></div>';
-      });
-    }
-    marqueeEl.innerHTML = html;
-  }
-  const container = document.getElementById('sectionsContainer');
-  if(!container)return;
-  let secHtml = '';
-  for(let t=0;t<3;t++){
-    secHtml += '<div class="section-title st'+t+'" id="sec-'+t+'">'+TYPE_LABELS[t]+'</div><div class="section-grid">';
-    if(sectionRes[t] && sectionRes[t].success && sectionRes[t].data && sectionRes[t].data.length){
-      sectionRes[t].data.forEach(a => {
-        secHtml += '<div class="article-card" onclick="showArticleDetail('+a.articleId+')">'
-          + '<div class="card-title">'+escHtml(a.title)+'</div>'
-          + '<div class="card-summary">'+escHtml(a.summary||'暂无摘要')+'</div>'
-          + '<div class="card-date">'+(a.createdAt?a.createdAt.replace('T',' ').substring(0,16):'')+'</div></div>';
-      });
-    } else {
-      secHtml += '<div class="empty-section">暂无'+TYPE_LABELS[t]+'</div>';
-    }
-    secHtml += '</div>';
-  }
-  container.innerHTML = secHtml;
-}
-function escHtml(s){return String(s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]||m;})}
-function scrollToSection(type){
-  const el = document.getElementById('sec-'+type);
-  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
-}
-async function showArticleDetail(id){
-  const res = await fetch('/api/articles/'+id).then(r=>r.json());
-  if(!res.success){showToast('加载失败','error');return;}
-  const a = res.data;
-  document.getElementById('modalBody').innerHTML = '<div class="detail-box" style="border:none;padding:0;max-width:100%">'
-    + '<span class="detail-close" onclick="closeModal()">&times;</span>'
-    + '<h2>'+escHtml(a.title)+'</h2>'
-    + '<div class="detail-meta"><span class="tag '+TYPE_TAGS[a.type]+'" style="padding:2px 10px;border-radius:10px;color:#fff;font-size:12px">'+TYPE_LABELS[a.type]+'</span> '+ (a.createdAt?a.createdAt.replace('T',' ').substring(0,16):'') +'</div>'
-    + '<div class="detail-content">'+escHtml(a.content||'暂无内容').replace(/\n/g,'<br>')+'</div></div>';
-  document.getElementById('modal').classList.add('active');
-}
-function switchToLogin(){
-  document.getElementById('homepage').style.display = 'none';
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('auth-page').style.display='flex';
-  showLogin();
-}
-function goToAdmin(){
-  document.getElementById('homepage').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  const active=document.querySelector('.page.active');
-  if(active&&active.id!=='page-profile')loadPage(active.id.replace('page-',''));
-  else loadPage('persons');
-}
-function goHome(){
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('auth-page').style.display = 'none';
-  document.getElementById('homepage').style.display = 'block';
-  loadHomepage();
-}
-
-// ===== 原有功能 =====
 function toggleManagerJob(){
   const el=document.getElementById('f-isManager');
   const row=document.getElementById('fg-managerJob');
@@ -333,7 +231,6 @@ function toggleSidebar(){
 }
 // 点击主区域关闭侧栏（移动端）
 document.addEventListener('DOMContentLoaded',()=>{
-  checkAuth();
   document.querySelector('.main')?.addEventListener('click',()=>{
     if(window.innerWidth<=900)document.querySelector('.sidebar')?.classList.remove('open');
   });
@@ -486,14 +383,15 @@ function afterLogin(name){
     this.src='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#e0e0e0"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="#999">👤</text></svg>');
   };
   document.getElementById('dropName').textContent=name;
+  // 获取 personalId
   api('/auth/me').then(r=>{
     if(r.success)document.getElementById('dropId').textContent='ID: '+r.data.personalId;
   });
-  // 登录成功后进入首页
-  document.getElementById('auth-page').style.display = 'none';
-  document.getElementById('homepage').style.display = 'block';
-  document.getElementById('app').style.display = 'none';
-  loadHomepage();
+  document.getElementById('auth-page').style.display='none';
+  document.getElementById('app').style.display='block';
+  const active=document.querySelector('.page.active');
+  if(active&&active.id!=='page-profile')loadPage(active.id.replace('page-',''));
+  else loadPage('persons');
 }
 async function checkAuth(){
   const res=await api('/auth/me');
@@ -503,9 +401,7 @@ async function checkAuth(){
 async function logout(){
   if(!confirm('确定要退出登录吗？'))return;
   await api('/auth/logout',{method:'POST'});
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('homepage').style.display = 'none';
-  document.getElementById('auth-page').style.display = 'flex';
+  document.getElementById('app').style.display='none';
   showLogin();
 }
 
@@ -774,11 +670,6 @@ const fields = {
     { key:'section', label:'所属声部' },
     { key:'file', label:'PDF 文件', type:'file', accept:'.pdf' }
   ],
-  articles: [
-    { key:'title', label:'标题', required:true },
-    { key:'type', label:'分类', type:'select', options:[{v:0,t:'排练通知'},{v:1,t:'演出通知'},{v:2,t:'乐团新闻'}], default:0 },
-    { key:'content', label:'内容', type:'textarea' }
-  ],
   logistics: [
     { key:'itemId', label:'物品ID', readonly:true },
     { key:'name', label:'物品名', required:true },
@@ -899,12 +790,11 @@ async function loadPage(page){
     page==='events'?[{key:'title',label:'标题'}]:
     page==='attendance'?[{key:'personalId',label:'用户ID'},{key:'eventId',label:'活动ID'}]:
     page==='scores'?[{key:'title',label:'乐谱名'},{key:'section',label:'声部'}] :
-    page==='articles'?[{key:'title',label:'标题'},{key:'type',label:'分类',type:'select',options:[{v:0,t:'排练通知'},{v:1,t:'演出通知'},{v:2,t:'乐团新闻'}]}] :
     [{key:'name',label:'物品名'},{key:'campus',label:'校区'}];
 
   // 为persons/logistics构建数值→标签映射
   let fieldLookup=null;
-  const lookupPages={persons:true,logistics:true,articles:true};
+  const lookupPages={persons:true,logistics:true};
   if(lookupPages[page]){
     fieldLookup={};
     fields[page].forEach(f=>{
