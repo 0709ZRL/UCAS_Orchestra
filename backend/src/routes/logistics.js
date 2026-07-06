@@ -107,6 +107,27 @@ router.get('/:itemId/image', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/logistics — 新增物品（无图片）
+router.post('/', async (req, res, next) => {
+  try {
+    const { name, campus, address, isPublic, belongsToId } = req.body;
+    if (!name) return res.status(400).json({ success: false, message: 'name 为必填项' });
+    const itemId = generateItemId();
+    await pool.query(
+      `INSERT INTO logistics (itemId, name, campus, address, imagehash, isPublic, belongsToId)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [itemId, name, campus || null, address || null, null,
+       isPublic !== undefined ? parseInt(isPublic) : 1,
+       belongsToId && belongsToId.trim() ? belongsToId.trim() : null]
+    );
+    res.status(201).json({ success: true, message: '物品已添加', itemId });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: '该 itemId 已存在' });
+    if (err.code === 'ER_NO_REFERENCED_ROW_2') return res.status(400).json({ success: false, message: 'belongsToId 指向的成员不存在' });
+    next(err);
+  }
+});
+
 // POST /api/logistics/upload — 新增物品 + 可选图片上传
 router.post('/upload', (req, res, next) => {
   upload.single('image')(req, res, async (err) => {

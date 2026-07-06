@@ -295,28 +295,32 @@ function showRegister(){
 }
 
 async function doLogin(){
+  if(window._submitting)return;
+  window._submitting=true;
   const account=document.getElementById('loginAccount').value.trim();
   const password=document.getElementById('loginPassword').value;
-  if(!account||!password){document.getElementById('authErr').textContent='请填写账号和密码';return;}
+  if(!account||!password){document.getElementById('authErr').textContent='请填写账号和密码';window._submitting=false;return;}
   const res=await api('/auth/login',{method:'POST',body:JSON.stringify({account,password})});
   if(res.success){afterLogin(res.name);}
   else document.getElementById('authErr').textContent=res.message;
+  window._submitting=false;
 }
 async function doRegister(){
+  if(window._submitting)return;
+  window._submitting=true;
   const body={};
   REG_FIELDS.forEach(f=>{
     const el=document.getElementById('reg-'+f.key);
     if(!el)return;
     const val=el.value;
-    if(f.required&&!val){document.getElementById('authErr').textContent='请填写所有必填项';return;}
+    if(f.required&&!val){document.getElementById('authErr').textContent='请填写所有必填项';window._submitting=false;return;}
     if(f.type==='select'||['gender','campus','section','job','isManager','managerJob','isMaster'].includes(f.key))
       body[f.key]=parseInt(val||0);
     else body[f.key]=val||null;
   });
-  if(!body.account||!body.password||!body.name){document.getElementById('authErr').textContent='账号、密码、姓名为必填项';return;}
+  if(!body.account||!body.password||!body.name){document.getElementById('authErr').textContent='账号、密码、姓名为必填项';window._submitting=false;return;}
   const res=await api('/auth/register',{method:'POST',body:JSON.stringify(body)});
   if(res.success){
-    // 如果有裁剪后的头像，上传
     if(_regCropBlob){
       const fd=new FormData();
       fd.append('avatar',_regCropBlob,'avatar.jpg');
@@ -326,6 +330,7 @@ async function doRegister(){
     afterLogin(res.name);
   }
   else document.getElementById('authErr').textContent=res.message;
+  window._submitting=false;
 }
 let _regCropBlob=null;
 function regStartCrop(input){
@@ -620,13 +625,16 @@ function attConfirmPick(){
   _attLookupState={};
 }
 async function attSubmit(){
+  if(window._submitting)return;
+  window._submitting=true;
   const pid=document.getElementById('f-personalId').value;
   const eid=document.getElementById('f-eventId').value;
-  if(!pid||!eid){showToast('请先通过查找确认成员和活动','error');return;}
+  if(!pid||!eid){showToast('请先通过查找确认成员和活动','error');window._submitting=false;return;}
   const method=parseInt(document.getElementById('f-method').value);
   const res=await api('/attendance',{method:'POST',body:JSON.stringify({personalId:pid,eventId:eid,method})});
   if(res.success){showToast('签到成功');closeModal();loadPage('attendance');}
   else showToast(res.message,'error');
+  window._submitting=false;
 }
 
 const fields = {
@@ -896,6 +904,8 @@ function showForm(page,data){
 }
 
 async function submitForm(page,id){
+  if(window._submitting)return;
+  window._submitting=true;
   const flds=fields[page];
   const body={};
   const formData=new FormData();
@@ -943,6 +953,7 @@ async function submitForm(page,id){
     closeModal();
     loadPage(page);
   }catch(e){showToast('操作失败','error')}
+  window._submitting=false;
 }
 
 async function delRow(page,id){
