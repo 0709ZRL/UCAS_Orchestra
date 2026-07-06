@@ -11,13 +11,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .header h1{font-size:18px;font-weight:600;flex:1}
 .header .env{font-size:11px;background:#e94560;padding:2px 10px;border-radius:10px;display:none}
 .header .menu-btn{display:block;background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0 4px}
+.header-right{display:flex;align-items:center;gap:12px;font-size:14px}
+.header-right .user-name{cursor:pointer;position:relative}
+.header-right .user-name .dropdown{display:none;position:absolute;top:100%;right:0;background:#fff;color:#333;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);min-width:120px;z-index:200;overflow:hidden}
+.header-right .user-name .dropdown a{display:block;padding:10px 16px;text-decoration:none;color:#333;font-size:14px}
+.header-right .user-name .dropdown a:hover{background:#f5f5f5;color:#e94560}
+.header-right .user-name:hover .dropdown{display:block}
 .container{display:flex;min-height:calc(100vh - 52px)}
 .sidebar{width:200px;background:#16213e;flex-shrink:0;transition:transform .3s}
-.sidebar a{display:block;padding:14px 20px;color:#a8b2d1;text-decoration:none;font-size:14px;border-left:3px solid transparent;transition:all .2s}
+.sidebar a{display:block;padding:14px 20px;color:#a8b2d1;text-decoration:none;font-size:14px;border-left:3px solid transparent;transition:all .2s;cursor:pointer}
 .sidebar a:hover,.sidebar a.active{background:#1a1a3e;color:#fff;border-left-color:#e94560}
 .main{flex:1;padding:16px 20px;min-width:0;overflow-x:hidden}
 .page{display:none}
 .page.active{display:block}
+/* === 登录/注册页 === */
+.auth-page{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);padding:20px}
+.auth-box{background:#fff;border-radius:16px;padding:36px 32px;width:420px;max-width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.auth-box h2{text-align:center;margin-bottom:24px;color:#1a1a2e;font-size:22px}
+.auth-box .form-group{margin-bottom:14px}
+.auth-box .form-group label{display:block;font-size:12px;color:#888;margin-bottom:4px}
+.auth-box .form-group input,.auth-box .form-group select{width:100%;padding:10px 12px;border:1px solid #d9d9d9;border-radius:8px;font-size:14px;background:#fafafa}
+.auth-box .form-group input:focus{border-color:#e94560;outline:none;background:#fff}
+.auth-box .auth-btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:16px;cursor:pointer;background:#e94560;color:#fff;margin-top:8px;font-weight:600}
+.auth-box .auth-btn:hover{background:#c73650}
+.auth-box .auth-link{text-align:center;margin-top:16px;font-size:14px;color:#666}
+.auth-box .auth-link a{color:#e94560;text-decoration:none;cursor:pointer}
+.auth-box .auth-link a:hover{text-decoration:underline}
+.auth-box .toggle-row{display:flex;gap:8px;margin-bottom:14px}
+.auth-box .toggle-row .form-group{flex:1;margin-bottom:0}
+.auth-hidden{display:none}
+/* ================ */
 .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .toolbar input,.toolbar select{padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;background:#fff;max-width:180px}
 .toolbar button,.btn{padding:8px 16px;border:none;border-radius:6px;font-size:14px;cursor:pointer;background:#e94560;color:#fff;transition:background .2s;white-space:nowrap}
@@ -86,10 +109,17 @@ tr:hover{background:#f8f9ff}
 </style>
 </head>
 <body>
+<div id="auth-page" class="auth-page"></div>
+<div id="app" style="display:none">
 <div class="header">
   <button class="menu-btn" onclick="toggleSidebar()">☰</button>
   <h1>🎵 乐团管理平台</h1>
   <span class="env">Orchestra v1.0</span>
+  <div class="header-right">
+    <div class="user-name" id="headerUser">用户 ▼
+      <div class="dropdown"><a onclick="logout()">🚪 退出登录</a></div>
+    </div>
+  </div>
 </div>
 <div class="container">
   <nav class="sidebar">
@@ -111,6 +141,7 @@ tr:hover{background:#f8f9ff}
     <!-- Logistics -->
     <div id="page-logistics" class="page"></div>
   </div>
+</div>
 </div>
 <div id="modal" class="modal-overlay"><div class="modal" id="modalBody"></div></div>
 <div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
@@ -152,10 +183,109 @@ function toggleSidebar(){
 }
 // 点击主区域关闭侧栏（移动端）
 document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelector('.main').addEventListener('click',()=>{
-    if(window.innerWidth<=900)document.querySelector('.sidebar').classList.remove('open');
+  document.querySelector('.main')?.addEventListener('click',()=>{
+    if(window.innerWidth<=900)document.querySelector('.sidebar')?.classList.remove('open');
   });
+  checkAuth();
 });
+
+// === 认证系统 ===
+const REG_FIELDS = [
+  { key:'account', label:'账号', required:true },
+  { key:'password', label:'密码', type:'password', required:true },
+  { key:'name', label:'真实姓名', required:true },
+  { key:'gender', label:'性别', type:'select', options:[{v:0,t:'女'},{v:1,t:'男'}], default:0 },
+  { key:'institute', label:'学院' },
+  { key:'grade', label:'年级' },
+  { key:'campus', label:'校区', type:'select', options:[{v:0,t:'中关村校区'},{v:1,t:'玉泉路校区'},{v:3,t:'雁栖湖校区'},{v:4,t:'京内其他地区'},{v:5,t:'京外其他地区'}], default:0 },
+  { key:'section', label:'声部', type:'select', options:[{v:0,t:'民族管乐声部'},{v:1,t:'弹拨一组'},{v:2,t:'弹拨二组'},{v:3,t:'胡琴声部'},{v:4,t:'提琴声部'},{v:5,t:'西洋木管声部'},{v:6,t:'西洋铜管声部'},{v:7,t:'低音声部'},{v:8,t:'钢琴声部'},{v:9,t:'打击声部'},{v:10,t:'无声部'}], default:0 },
+  { key:'job', label:'职位', type:'select', options:[{v:0,t:'普通成员'},{v:1,t:'声部长'}], default:0 },
+  { key:'isManager', label:'是否管理人员', type:'select', options:[{v:0,t:'否'},{v:1,t:'是'}], default:0 },
+  { key:'managerJob', label:'管理职责', type:'select', options:[{v:0,t:'普通干事'},{v:1,t:'团长'},{v:2,t:'业务副团长'},{v:3,t:'人事副团长'},{v:4,t:'后勤组组长'},{v:5,t:'宣传组组长'},{v:6,t:'学生指挥'},{v:7,t:'指挥助理'},{v:8,t:'指挥'}], default:0 },
+  { key:'instrument', label:'乐器（多个用分号分隔）' },
+  { key:'isMaster', label:'声部首席', type:'select', options:[{v:0,t:'否'},{v:1,t:'是'}], default:0 }
+];
+
+function showLogin(){
+  const el=document.getElementById('auth-page');
+  el.style.display='flex';
+  document.getElementById('app').style.display='none';
+  let h=`<div class="auth-box"><h2>🎵 乐团管理系统</h2>
+    <form id="authForm">
+      <div class="form-group"><label>账号</label><input id="loginAccount" type="text" placeholder="请输入账号"></div>
+      <div class="form-group"><label>密码</label><input id="loginPassword" type="password" placeholder="请输入密码"></div>
+    </form>
+    <button class="auth-btn" onclick="doLogin()">登 录</button>
+    <div class="auth-link">还没有账号？<a onclick="showRegister()">立即注册</a></div>
+    <div id="authErr" style="color:#e94560;text-align:center;margin-top:12px;font-size:14px"></div></div>`;
+  el.innerHTML=h;
+}
+function showRegister(){
+  const el=document.getElementById('auth-page');
+  let h=`<div class="auth-box"><h2>🎵 注册新账号</h2>
+    <form id="authForm">`;
+  REG_FIELDS.forEach((f,i)=>{
+    const inp=f.type==='select'?`<select id="reg-${f.key}">${f.options.map(o=>`<option value="${o.v}" ${f.default===o.v?'selected':''}>${o.t}</option>`).join('')}</select>`:
+      `<input id="reg-${f.key}" type="${f.type||'text'}" ${f.required?'required':''} placeholder="请输入${f.label}">`;
+    h+=`<div class="form-group"><label>${f.label}${f.required?' *':''}</label>${inp}</div>`;
+  });
+  // 管理职责联动脚本
+  h+=`<script>document.getElementById('reg-isManager')?.addEventListener('change',function(){
+    const r=document.getElementById('reg-managerJob')?.closest('.form-group');
+    if(r)r.style.display=this.value==='1'?'':'none';
+  });
+  const mgr=document.getElementById('reg-isManager');
+  if(mgr){const e=new Event('change');mgr.dispatchEvent(e);}<\/script>`;
+  h+=`</form>
+    <button class="auth-btn" onclick="doRegister()">注 册</button>
+    <div class="auth-link">已有账号？<a onclick="showLogin()">返回登录</a></div>
+    <div id="authErr" style="color:#e94560;text-align:center;margin-top:12px;font-size:14px"></div></div>`;
+  el.innerHTML=h;
+}
+
+async function doLogin(){
+  const account=document.getElementById('loginAccount').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  if(!account||!password){document.getElementById('authErr').textContent='请填写账号和密码';return;}
+  const res=await api('/auth/login',{method:'POST',body:JSON.stringify({account,password})});
+  if(res.success){afterLogin(res.name);}
+  else document.getElementById('authErr').textContent=res.message;
+}
+async function doRegister(){
+  const body={};
+  REG_FIELDS.forEach(f=>{
+    const el=document.getElementById('reg-'+f.key);
+    if(!el)return;
+    const val=el.value;
+    if(f.required&&!val){document.getElementById('authErr').textContent='请填写所有必填项';return;}
+    if(f.type==='select'||['gender','campus','section','job','isManager','managerJob','isMaster'].includes(f.key))
+      body[f.key]=parseInt(val||0);
+    else body[f.key]=val||null;
+  });
+  if(!body.account||!body.password||!body.name){document.getElementById('authErr').textContent='账号、密码、姓名为必填项';return;}
+  const res=await api('/auth/register',{method:'POST',body:JSON.stringify(body)});
+  if(res.success){afterLogin(res.name);}
+  else document.getElementById('authErr').textContent=res.message;
+}
+function afterLogin(name){
+  document.getElementById('headerUser').childNodes[0].textContent=name+' ▼';
+  document.getElementById('auth-page').style.display='none';
+  document.getElementById('app').style.display='block';
+  // 重新加载当前页面
+  const active=document.querySelector('.page.active');
+  if(active)loadPage(active.id.replace('page-',''));
+  else loadPage('persons');
+}
+async function checkAuth(){
+  const res=await api('/auth/me');
+  if(res.success){afterLogin(res.data.name);}
+  else showLogin();
+}
+async function logout(){
+  await api('/auth/logout',{method:'POST'});
+  document.getElementById('app').style.display='none';
+  showLogin();
+}
 
 // === 出勤管理：查找确认 ===
 let _attLookupState={};

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
 const errorHandler = require('./middleware/errorHandler');
@@ -9,6 +10,7 @@ const eventsRouter = require('./routes/events');
 const attendanceRouter = require('./routes/attendance');
 const scoresRouter = require('./routes/scores');
 const logisticsRouter = require('./routes/logistics');
+const authRouter = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +18,7 @@ const PORT = process.env.PORT || 3000;
 // 中间件
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static('public'));
 // 暴露上传目录用于 PDF 预览
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -26,6 +29,7 @@ app.use('/api/events', eventsRouter);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/scores', scoresRouter);
 app.use('/api/logistics', logisticsRouter);
+app.use('/api/auth', authRouter);
 
 // 健康检查
 app.get('/api/health', (_req, res) => {
