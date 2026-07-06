@@ -61,6 +61,29 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .crop-box .crop-area{max-width:480px;max-height:400px;overflow:hidden;margin-bottom:12px}
 .crop-box .crop-area img{max-width:100%}
 .crop-box .crop-actions{display:flex;gap:8px;justify-content:center}
+/* 首页 */
+.homepage-wrap{padding:8px 0}
+.home-marquee{background:#fff;border-radius:8px;overflow:hidden;margin-bottom:20px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:8px 0}
+.marquee-inner{display:flex;animation:scrollMarquee 30s linear infinite;width:max-content}
+.marquee-item{display:inline-flex;align-items:center;gap:8px;padding:8px 24px;white-space:nowrap;cursor:pointer;font-size:14px;border-right:1px solid #f0f0f0;transition:background .2s}
+.marquee-item:hover{background:#f8f9ff}
+.mtag{font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;color:#fff;flex-shrink:0}
+.mtag.t0{background:#e94560}.mtag.t1{background:#667eea}.mtag.t2{background:#2d8a4e}
+@keyframes scrollMarquee{0%{transform:translateX(0)}100%{transform:translateX(-33.33%)}}
+.home-sections{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.home-section{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);overflow:hidden}
+.hs-title{padding:14px 18px;font-size:16px;font-weight:700;margin:0;border-bottom:2px solid}
+.hs-title.hs-0{color:#e94560;border-color:#e94560}
+.hs-title.hs-1{color:#667eea;border-color:#667eea}
+.hs-title.hs-2{color:#2d8a4e;border-color:#2d8a4e}
+.hs-list{padding:8px}
+.hs-card{padding:12px;border-radius:6px;cursor:pointer;transition:background .2s}
+.hs-card:hover{background:#f8f9ff}
+.hs-card-title{font-size:14px;font-weight:600;margin-bottom:4px;color:#333;line-height:1.4}
+.hs-card-summary{font-size:12px;color:#888;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hs-card-date{font-size:11px;color:#bbb;margin-top:6px}
+.hs-empty{padding:30px;text-align:center;color:#ccc;font-size:14px}
+@media(max-width:800px){.home-sections{grid-template-columns:1fr}}
 /* ================ */
 /* ================ */
 .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
@@ -160,16 +183,19 @@ tr:hover{background:#f8f9ff}
 </div>
 <div class="container">
   <nav class="sidebar">
-    <a href="#" data-page="persons" class="active">👤 成员管理</a>
+    <a href="#" data-page="home" class="active">🏠 首页</a>
+    <a href="#" data-page="persons">👤 成员管理</a>
     <a href="#" data-page="events">📅 活动管理</a>
     <a href="#" data-page="attendance">📋 出勤管理</a>
     <a href="#" data-page="scores">🎼 乐谱管理</a>
     <a href="#" data-page="logistics">📦 后勤管理</a>
+    <a href="#" data-page="articles">📰 文章管理</a>
     <a href="#" data-page="profile">👤 个人信息</a>
   </nav>
   <div class="main">
     <!-- Persons -->
-    <div id="page-persons" class="page active"></div>
+    <div id="page-home" class="page active"></div>
+    <div id="page-persons" class="page"></div>
     <!-- Events -->
     <div id="page-events" class="page"></div>
     <!-- Attendance -->
@@ -178,6 +204,7 @@ tr:hover{background:#f8f9ff}
     <div id="page-scores" class="page"></div>
     <!-- Logistics -->
     <div id="page-logistics" class="page"></div>
+    <div id="page-articles" class="page"></div>
     <div id="page-profile" class="page"></div>
   </div>
 </div>
@@ -200,7 +227,7 @@ tr:hover{background:#f8f9ff}
 
 <script>
 const API = '/api';
-const state = { persons:{page:1}, events:{page:1}, attendance:{page:1}, scores:{page:1}, logistics:{page:1} };
+const state = { persons:{page:1}, events:{page:1}, attendance:{page:1}, scores:{page:1}, logistics:{page:1}, articles:{page:1} };
 
 // 全局联动函数
 function toggleManagerJob(){
@@ -670,6 +697,11 @@ const fields = {
     { key:'section', label:'所属声部' },
     { key:'file', label:'PDF 文件', type:'file', accept:'.pdf' }
   ],
+  articles: [
+    { key:'title', label:'标题', required:true },
+    { key:'type', label:'分类', type:'select', options:[{v:0,t:'排练通知'},{v:1,t:'演出通知'},{v:2,t:'乐团新闻'}], default:0 },
+    { key:'content', label:'内容', type:'textarea' }
+  ],
   logistics: [
     { key:'itemId', label:'物品ID', readonly:true },
     { key:'name', label:'物品名', required:true },
@@ -764,6 +796,11 @@ function goPage(page,p){state[page].page=p;loadPage(page)}
 
 async function loadPage(page){
   const el=document.getElementById('page-'+page);
+  // 首页不走 API
+  if(page==='home'){
+    renderHomepage(el);
+    return;
+  }
   const search={};
   (fields[page]||[]).forEach(f=>{
     const inp=document.getElementById('sf-'+page+'-'+f.key);
@@ -790,11 +827,12 @@ async function loadPage(page){
     page==='events'?[{key:'title',label:'标题'}]:
     page==='attendance'?[{key:'personalId',label:'用户ID'},{key:'eventId',label:'活动ID'}]:
     page==='scores'?[{key:'title',label:'乐谱名'},{key:'section',label:'声部'}] :
+    page==='articles'?[{key:'title',label:'标题'},{key:'type',label:'分类',type:'select',options:[{v:0,t:'排练通知'},{v:1,t:'演出通知'},{v:2,t:'乐团新闻'}]}] :
     [{key:'name',label:'物品名'},{key:'campus',label:'校区'}];
 
   // 为persons/logistics构建数值→标签映射
   let fieldLookup=null;
-  const lookupPages={persons:true,logistics:true};
+  const lookupPages={persons:true,logistics:true,articles:true};
   if(lookupPages[page]){
     fieldLookup={};
     fields[page].forEach(f=>{
@@ -807,6 +845,58 @@ async function loadPage(page){
   html+=buildPagination(page,res.total,res.limit);
   el.innerHTML=html;
 }
+
+// ===== 首页 =====
+const TYPE_LABELS = ['排练通知','演出通知','乐团新闻'];
+const TYPE_TAGS = ['t0','t1','t2'];
+async function renderHomepage(el){
+  const [marqueeRes, sectionRes] = await Promise.all([
+    fetch('/api/articles?limit=6').then(r=>r.json()),
+    Promise.all([0,1,2].map(t=>fetch('/api/articles?type='+t+'&limit=10').then(r=>r.json())))
+  ]);
+  let html = '<div class="homepage-wrap">';
+  // 走马灯
+  html += '<div class="home-marquee"><div class="marquee-inner" id="marqueeInner">';
+  if(marqueeRes && marqueeRes.success && marqueeRes.data && marqueeRes.data.length){
+    for(let round=0; round<3; round++){
+      marqueeRes.data.forEach(a => {
+        html += '<span class="marquee-item" onclick="showArticleDetail('+a.articleId+')">'
+          + '<span class="mtag '+TYPE_TAGS[a.type]+'">'+TYPE_LABELS[a.type]+'</span> '
+          + a.title + '</span>';
+      });
+    }
+  }
+  html += '</div></div>';
+  // 三板块
+  html += '<div class="home-sections">';
+  for(let t=0; t<3; t++){
+    html += '<div class="home-section"><h3 class="hs-title hs-'+t+'">'+TYPE_LABELS[t]+'</h3><div class="hs-list">';
+    if(sectionRes[t] && sectionRes[t].success && sectionRes[t].data && sectionRes[t].data.length){
+      sectionRes[t].data.forEach(a => {
+        html += '<div class="hs-card" onclick="showArticleDetail('+a.articleId+')">'
+          + '<div class="hs-card-title">'+escHtml(a.title)+'</div>'
+          + '<div class="hs-card-summary">'+escHtml((a.summary||a.content||'暂无').substring(0,120))+'</div>'
+          + '<div class="hs-card-date">'+(a.createdAt?a.createdAt.replace('T',' ').substring(0,16):'')+'</div></div>';
+      });
+    } else {
+      html += '<div class="hs-empty">暂无</div>';
+    }
+    html += '</div></div>';
+  }
+  html += '</div></div>';
+  el.innerHTML = html;
+  // 点击文章弹详情
+  window.showArticleDetail = async function(id){
+    const res = await fetch('/api/articles/'+id).then(r=>r.json());
+    if(!res.success){showToast('加载失败','error');return;}
+    const a = res.data;
+    document.getElementById('modalBody').innerHTML = '<div style="padding:10px 0"><h2 style="margin-bottom:8px">'+escHtml(a.title)+'</h2>'
+      + '<div style="font-size:13px;color:#999;margin-bottom:12px"><span class="mtag '+TYPE_TAGS[a.type]+'">'+TYPE_LABELS[a.type]+'</span> '+(a.createdAt||'').replace('T',' ').substring(0,16)+'</div>'
+      + '<div style="font-size:15px;line-height:1.8;color:#444">'+escHtml(a.content||'无内容').replace(/\n/g,'<br>')+'</div></div>';
+    document.getElementById('modal').classList.add('active');
+  };
+}
+function escHtml(s){return String(s).replace(/[&<>]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m]||m;})}
 
 function showForm(page,data){
   const isEdit=!!data;
@@ -965,7 +1055,7 @@ async function delRow(page,id){
 }
 
 // Init
-loadPage('persons');
+loadPage('home');
 </script>
 </body>
 </html>
