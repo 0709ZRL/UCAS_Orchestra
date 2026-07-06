@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>乐团管理平台</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+<link rel="stylesheet" href="/cropper.min.css">
+<script src="/cropper.min.js" defer></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f2f5;color:#333;min-height:100vh}
@@ -261,25 +261,28 @@ function showLogin(){
 }
 function showRegister(){
   const el=document.getElementById('auth-page');
-  let h=`<div class="auth-box"><h2>🎵 注册新账号</h2>
-    <form id="authForm">`;
+  let h=`<div class="auth-box" style="width:500px"><h2>🎵 注册新账号</h2>
+    <form id="authForm">
+      <div style="text-align:center;margin-bottom:16px">
+        <img id="regAvatarPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23eee' width='100' height='100'/%3E%3Ctext x='50' y='58' text-anchor='middle' font-size='40' fill='%23999'%3E📷%3C/text%3E%3C/svg%3E" style="width:80px;height:80px;border-radius:50%;object-fit:cover;cursor:pointer;border:2px dashed #ccc" onclick="document.getElementById('regAvatarInput').click()">
+        <div style="font-size:12px;color:#999;margin-top:4px">点击上传头像</div>
+        <input id="regAvatarInput" type="file" accept="image/*" style="display:none" onchange="regStartCrop(this)">
+      </div>`;
   REG_FIELDS.forEach((f,i)=>{
-    const inp=f.type==='select'?`<select id="reg-${f.key}">${f.options.map(o=>`<option value="${o.v}" ${f.default===o.v?'selected':''}>${o.t}</option>`).join('')}</select>`:
+    let extra='';
+    if(f.key==='isManager')extra=' onchange="document.getElementById(\\'reg-managerJob\\')?.closest(\\'.form-group\\').style.display=this.value===\\'1\\'?\\'\\':\\'none\\';this.dispatchEvent(new Event(\\'change\\'))"';
+    const inp=f.type==='select'?`<select id="reg-${f.key}"${extra}>${f.options.map(o=>`<option value="${o.v}" ${f.default===o.v?'selected':''}>${o.t}</option>`).join('')}</select>`:
       `<input id="reg-${f.key}" type="${f.type||'text'}" ${f.required?'required':''} placeholder="请输入${f.label}">`;
     h+=`<div class="form-group"><label>${f.label}${f.required?' *':''}</label>${inp}</div>`;
   });
-  // 管理职责联动脚本
-  h+=`<script>document.getElementById('reg-isManager')?.addEventListener('change',function(){
-    const r=document.getElementById('reg-managerJob')?.closest('.form-group');
-    if(r)r.style.display=this.value==='1'?'':'none';
-  });
-  const mgr=document.getElementById('reg-isManager');
-  if(mgr){const e=new Event('change');mgr.dispatchEvent(e);}<\/script>`;
   h+=`</form>
     <button class="auth-btn" onclick="doRegister()">注 册</button>
     <div class="auth-link">已有账号？<a onclick="showLogin()">返回登录</a></div>
     <div id="authErr" style="color:#e94560;text-align:center;margin-top:12px;font-size:14px"></div></div>`;
   el.innerHTML=h;
+  // 初始隐藏管理职责
+  const mgr=document.getElementById('reg-isManager');
+  if(mgr){mgr.dispatchEvent(new Event('change'));}
 }
 
 async function doLogin(){
@@ -329,8 +332,7 @@ function regStartCrop(input){
   reader.readAsDataURL(input.files[0]);
   input.value='';
 }
-// 重写 confirmCrop 以支持注册场景
-const _origConfirmCrop=confirmCrop;
+// 复写 confirmCrop 以支持注册场景
 confirmCrop=async function(){
   if(!_cropper)return;
   const canvas=_cropper.getCroppedCanvas({width:256,height:256});
@@ -498,30 +500,7 @@ function closeCrop(){
   document.getElementById('cropModal').classList.remove('active');
   if(_cropper){_cropper.destroy();_cropper=null;}
 }
-async function confirmCrop(){
-  if(!_cropper)return;
-  const canvas=_cropper.getCroppedCanvas({width:256,height:256});
-  _cropper.destroy();_cropper=null;
-  closeCrop();
-  canvas.toBlob(async blob=>{
-    const fd=new FormData();
-    fd.append('avatar',blob,'avatar.jpg');
-    const res=await fetch(API+'/auth/avatar',{method:'POST',body:fd});
-    const data=await res.json();
-    if(data.success){showToast('头像已更新');afterLogin(document.getElementById('dropName').textContent);}
-    else showToast(data.message,'error');
-  },'image/jpeg',0.9);
-}
-// 注册表单添加头像
-function showRegister(){
-  const el=document.getElementById('auth-page');
-  let h=`<div class="auth-box" style="width:500px"><h2>🎵 注册新账号</h2>
-    <form id="authForm">
-      <div style="text-align:center;margin-bottom:16px">
-        <img id="regAvatarPreview" src="data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 100 100\\"><rect fill=\\"%23eee\\" width=\\"100\\" height=\\"100\\"/><text x=\\"50\\" y=\\"58\\" text-anchor=\\"middle\\" font-size=\\"40\\" fill=\\"%23999\\">📷</text></svg>" style="width:80px;height:80px;border-radius:50%;object-fit:cover;cursor:pointer;border:2px dashed #ccc" onclick="document.getElementById('regAvatarInput').click()">
-        <div style="font-size:12px;color:#999;margin-top:4px">点击上传头像</div>
-        <input id="regAvatarInput" type="file" accept="image/*" style="display:none" onchange="regStartCrop(this)">
-      </div>`;
+// 注册表单添加头像 — showRegister 在下方按需重写
 let _attLookupState={};
 async function attLookup(){
   const pn=document.getElementById('f-personName').value.trim();
