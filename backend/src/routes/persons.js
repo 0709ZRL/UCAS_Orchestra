@@ -1,7 +1,22 @@
 const express = require('express');
 const pool = require('../db');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
+
+const AVATAR_DIR = path.join(__dirname, '../../uploads/avatars');
+
+function saveAvatar(base64Str, personalId) {
+  if (!base64Str || !base64Str.startsWith('data:image/')) return null;
+  const matches = base64Str.match(/^data:image\/(png|jpeg|jpg|gif|webp);base64,(.+)$/);
+  if (!matches) return null;
+  const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+  const data = Buffer.from(matches[2], 'base64');
+  const filename = `${personalId}.${ext}`;
+  fs.writeFileSync(path.join(AVATAR_DIR, filename), data);
+  return filename;
+}
 
 // 生成唯一 personalId: P + 14位时间戳 + 4位随机数
 function generatePersonalId() {
@@ -81,8 +96,17 @@ router.put('/:personalId', async (req, res, next) => {
   try {
     const fields = ['name', 'gender', 'institute', 'grade', 'campus', 'section', 'job', 'isManager', 'managerJob', 'instrument', 'isMaster'];
     const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
+    // 处理头像
+    if (req.body.avatar) {
+      const avatarFile = saveAvatar(req.body.avatar, req.params.personalId);
+      if (avatarFile) {
+        sets.push('avatar = ?');
+        req.body._avatar = avatarFile;
+      }
+    }
     if (!sets.length) return res.status(400).json({ success: false, message: '没有需要更新的字段' });
     const values = fields.filter(f => req.body[f] !== undefined).map(f => req.body[f]);
+    if (req.body._avatar) values.push(req.body._avatar);
     values.push(req.params.personalId);
     const [result] = await pool.query(`UPDATE persons SET ${sets.join(', ')} WHERE personalId = ?`, values);
     if (!result.affectedRows) return res.status(404).json({ success: false, message: '未找到该成员' });

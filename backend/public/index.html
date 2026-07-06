@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>乐团管理平台</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f2f5;color:#333;min-height:100vh}
@@ -40,6 +42,24 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .auth-box .toggle-row{display:flex;gap:8px;margin-bottom:14px}
 .auth-box .toggle-row .form-group{flex:1;margin-bottom:0}
 .auth-hidden{display:none}
+/* 个人信息页 */
+.profile-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:32px;max-width:600px;margin:0 auto}
+.profile-avatar{text-align:center;margin-bottom:24px;position:relative}
+.profile-avatar img{width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,.15)}
+.profile-avatar .edit-badge{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-size:12px;padding:4px 16px;border-radius:20px;cursor:pointer;white-space:nowrap}
+.profile-avatar .edit-badge:hover{background:#e94560}
+.profile-field{display:flex;padding:12px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
+.profile-field .pl{width:120px;color:#888;flex-shrink:0}
+.profile-field .pv{flex:1;color:#333}
+.profile-actions{text-align:center;margin-top:24px}
+/* 裁剪弹窗 */
+.crop-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:4000;justify-content:center;align-items:center;padding:20px}
+.crop-overlay.active{display:flex}
+.crop-box{background:#fff;border-radius:12px;padding:20px;max-width:90vw;text-align:center}
+.crop-box .crop-area{max-width:480px;max-height:400px;overflow:hidden;margin-bottom:12px}
+.crop-box .crop-area img{max-width:100%}
+.crop-box .crop-actions{display:flex;gap:8px;justify-content:center}
+/* ================ */
 /* ================ */
 .toolbar{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
 .toolbar input,.toolbar select{padding:8px 12px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;background:#fff;max-width:180px}
@@ -116,8 +136,16 @@ tr:hover{background:#f8f9ff}
   <h1>🎵 乐团管理平台</h1>
   <span class="env">Orchestra v1.0</span>
   <div class="header-right">
-    <div class="user-name" id="headerUser">用户 ▼
-      <div class="dropdown"><a onclick="logout()">🚪 退出登录</a></div>
+    <div class="user-name" id="headerUser">
+      <img id="avatarThumb" src="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:#eee;vertical-align:middle">
+      <div class="dropdown">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee">
+          <div id="dropName" style="font-weight:600;font-size:14px"></div>
+          <div id="dropId" style="font-size:12px;color:#999;margin-top:2px"></div>
+        </div>
+        <a onclick="showProfile()">👤 个人信息</a>
+        <a onclick="logout()">🚪 退出登录</a>
+      </div>
     </div>
   </div>
 </div>
@@ -128,6 +156,7 @@ tr:hover{background:#f8f9ff}
     <a href="#" data-page="attendance">📋 出勤管理</a>
     <a href="#" data-page="scores">🎼 乐谱管理</a>
     <a href="#" data-page="logistics">📦 后勤管理</a>
+    <a href="#" data-page="profile">👤 个人信息</a>
   </nav>
   <div class="main">
     <!-- Persons -->
@@ -140,6 +169,7 @@ tr:hover{background:#f8f9ff}
     <div id="page-scores" class="page"></div>
     <!-- Logistics -->
     <div id="page-logistics" class="page"></div>
+    <div id="page-profile" class="page"></div>
   </div>
 </div>
 </div>
@@ -147,6 +177,15 @@ tr:hover{background:#f8f9ff}
 <div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
   <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
   <img class="lightbox-img" id="lightboxImg" src="" alt="大图预览">
+</div>
+<div id="cropModal" class="crop-overlay">
+  <div class="crop-box">
+    <div class="crop-area"><img id="cropImage" src=""></div>
+    <div class="crop-actions">
+      <button class="btn-cancel" onclick="closeCrop()">取消</button>
+      <button class="btn-green" onclick="confirmCrop()">✅ 确认裁剪</button>
+    </div>
+  </div>
 </div>
 <div id="toast"></div>
 
@@ -264,16 +303,69 @@ async function doRegister(){
   });
   if(!body.account||!body.password||!body.name){document.getElementById('authErr').textContent='账号、密码、姓名为必填项';return;}
   const res=await api('/auth/register',{method:'POST',body:JSON.stringify(body)});
-  if(res.success){afterLogin(res.name);}
+  if(res.success){
+    // 如果有裁剪后的头像，上传
+    if(_regCropBlob){
+      const fd=new FormData();
+      fd.append('avatar',_regCropBlob,'avatar.jpg');
+      await fetch(API+'/auth/avatar',{method:'POST',body:fd});
+      _regCropBlob=null;
+    }
+    afterLogin(res.name);
+  }
   else document.getElementById('authErr').textContent=res.message;
 }
-function afterLogin(name){
-  document.getElementById('headerUser').childNodes[0].textContent=name+' ▼';
+let _regCropBlob=null;
+function regStartCrop(input){
+  if(!input.files||!input.files[0])return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=document.getElementById('cropImage');
+    img.src=e.target.result;
+    document.getElementById('cropModal').classList.add('active');
+    if(_cropper)_cropper.destroy();
+    _cropper=new Cropper(img,{aspectRatio:1,viewMode:1,minCropBoxWidth:100,minCropBoxHeight:100});
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value='';
+}
+// 重写 confirmCrop 以支持注册场景
+const _origConfirmCrop=confirmCrop;
+confirmCrop=async function(){
+  if(!_cropper)return;
+  const canvas=_cropper.getCroppedCanvas({width:256,height:256});
+  _cropper.destroy();_cropper=null;
+  closeCrop();
+  // 判断是在注册还是登录后
+  const authPage=document.getElementById('auth-page');
+  if(authPage.style.display!=='none'&&document.getElementById('regAvatarPreview')){
+    // 注册场景
+    canvas.toBlob(blob=>{_regCropBlob=blob;document.getElementById('regAvatarPreview').src=URL.createObjectURL(blob);},'image/jpeg',0.9);
+  } else {
+    // 个人信息场景
+    canvas.toBlob(async blob=>{
+      const fd=new FormData();
+      fd.append('avatar',blob,'avatar.jpg');
+      const res=await fetch(API+'/auth/avatar',{method:'POST',body:fd});
+      const data=await res.json();
+      if(data.success){showToast('头像已更新');afterLogin(document.getElementById('dropName').textContent);}
+      else showToast(data.message,'error');
+    },'image/jpeg',0.9);
+  }
+};
+  // 刷新头像&用户信息
+  const ts=Date.now();
+  document.getElementById('avatarThumb').src='/api/auth/avatar?'+ts;
+  document.getElementById('avatarThumb').onerror=function(){this.src='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="%23ddd" width="100" height="100"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="%23999">👤</text></svg>';};
+  document.getElementById('dropName').textContent=name;
+  // 获取 personalId
+  api('/auth/me').then(r=>{
+    if(r.success)document.getElementById('dropId').textContent='ID: '+r.data.personalId;
+  });
   document.getElementById('auth-page').style.display='none';
   document.getElementById('app').style.display='block';
-  // 重新加载当前页面
   const active=document.querySelector('.page.active');
-  if(active)loadPage(active.id.replace('page-',''));
+  if(active&&active.id!=='page-profile')loadPage(active.id.replace('page-',''));
   else loadPage('persons');
 }
 async function checkAuth(){
@@ -282,12 +374,154 @@ async function checkAuth(){
   else showLogin();
 }
 async function logout(){
+  if(!confirm('确定要退出登录吗？'))return;
   await api('/auth/logout',{method:'POST'});
   document.getElementById('app').style.display='none';
   showLogin();
 }
 
-// === 出勤管理：查找确认 ===
+// === 个人信息页 ===
+const PROFILE_LABELS={
+  name:'姓名',gender:'性别',account:'账号',personalId:'用户ID',
+  institute:'学院',grade:'年级',campus:'校区',section:'声部',
+  job:'职位',isManager:'管理人员',managerJob:'管理职责',instrument:'乐器',isMaster:'声部首席'
+};
+const PROFILE_MAP={
+  gender:{0:'女',1:'男'},campus:{0:'中关村',1:'玉泉路',3:'雁栖湖',4:'京内其他',5:'京外其他'},
+  section:{0:'民族管乐',1:'弹拨一组',2:'弹拨二组',3:'胡琴',4:'提琴',5:'西洋木管',6:'西洋铜管',7:'低音',8:'钢琴',9:'打击',10:'无声部'},
+  job:{0:'普通成员',1:'声部长'},isManager:{0:'否',1:'是'},isMaster:{0:'否',1:'是'},
+  managerJob:{0:'普通干事',1:'团长',2:'业务副团长',3:'人事副团长',4:'后勤组长',5:'宣传组长',6:'学生指挥',7:'指挥助理',8:'指挥'}
+};
+async function showProfile(){
+  // 切换页面
+  $$('.sidebar a').forEach(x=>x.classList.remove('active'));
+  document.querySelector('[data-page="profile"]')?.classList.add('active');
+  $$('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-profile').classList.add('active');
+
+  const res=await api('/auth/me');
+  if(!res.success)return;
+  const pid=res.data.personalId;
+  const ures=await api('/persons/'+pid);
+  if(!ures.success){document.getElementById('page-profile').innerHTML='<p>加载失败</p>';return;}
+  const u=ures.data;
+  const ts=Date.now();
+
+  let html=`<div class="profile-wrap">
+    <div class="profile-avatar">
+      <img src="/api/auth/avatar?${ts}" id="profileAvatar" onerror="this.src='data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 100 100\\"><rect fill=\\"%23ddd\\" width=\\"100\\" height=\\"100\\"/><text x=\\"50\\" y=\\"58\\" text-anchor=\\"middle\\" font-size=\\"40\\" fill=\\"%23999\\">👤</text></svg>'">
+      <div class="edit-badge" onclick="document.getElementById('avatarInput').click()">📷 更换头像</div>
+      <input id="avatarInput" type="file" accept="image/*" style="display:none" onchange="startCrop(this)">
+    </div>`;
+
+  const order=['name','gender','personalId','account','institute','grade','campus','section','job','isManager','managerJob','instrument','isMaster'];
+  order.forEach(k=>{
+    if(k==='personalId'||k==='account')html+=`<div class="profile-field"><div class="pl">${PROFILE_LABELS[k]}</div><div class="pv">${u[k]||''}</div></div>`;
+    else {
+      const v=u[k];
+      const label=PROFILE_MAP[k]?PROFILE_MAP[k][v]:(v!==null&&v!==undefined?v:'');
+      html+=`<div class="profile-field"><div class="pl">${PROFILE_LABELS[k]}</div><div class="pv" id="pv-${k}">${label}</div></div>`;
+    }
+  });
+
+  html+=`<div class="profile-actions"><button class="btn-green" onclick="showProfileEdit()">✏️ 编辑信息</button></div></div>`;
+  document.getElementById('page-profile').innerHTML=html;
+}
+
+let _profileData=null;
+async function showProfileEdit(){
+  const res=await api('/auth/me');
+  if(!res.success)return;
+  const ures=await api('/persons/'+res.data.personalId);
+  if(!ures.success)return;
+  _profileData=ures.data;
+  const flds=fields.persons.filter(f=>f.key!=='personalId'); // 复用 persons 字段定义
+  let html=`<h2>编辑个人信息</h2><form id="form">`;
+  let rows=[];
+  flds.forEach(f=>{
+    if(f.key==='isManager'||f.key==='managerJob'||f.key==='isMaster'||f.key==='gender'||f.key==='campus'||f.key==='section'||f.key==='job'){
+      // select
+      const val=_profileData[f.key]!==null&&_profileData[f.key]!==undefined?_profileData[f.key]:f.default;
+      const inp=`<select id="f-${f.key}">${f.options.map(o=>`<option value="${o.v}" ${String(val)==String(o.v)?'selected':''}>${o.t}</option>`).join('')}</select>`;
+      rows.push({key:f.key,label:f.label,html:inp});
+    } else {
+      const val=_profileData[f.key]||'';
+      const inp=`<input id="f-${f.key}" type="text" value="${val}">`;
+      rows.push({key:f.key,label:f.label,html:inp});
+    }
+  });
+  rows.forEach((r,i)=>{
+    if(i%2===0)html+='<div class="form-row">';
+    html+=`<div class="form-group" id="fg-${r.key}"><label>${r.label}</label>${r.html}</div>`;
+    if(i%2===1||i===rows.length-1)html+='</div>';
+  });
+  html+=`</form><div class="form-actions">
+    <button class="btn-cancel" onclick="closeModal()">取消</button>
+    <button class="btn-green" onclick="submitProfile()">保存</button>
+  </div>`;
+  // 管理职责联动
+  html+=`<script>const e=document.getElementById('f-isManager');const r=document.getElementById('fg-managerJob');function t(){r.style.display=e.value==='1'?'':'none';}if(e&&r){e.addEventListener('change',t);t();}<\/script>`;
+  openModal(html);
+}
+async function submitProfile(){
+  const flds=fields.persons.filter(f=>f.key!=='personalId');
+  const body={};
+  const intKeys=['gender','campus','section','job','isManager','managerJob','isMaster'];
+  flds.forEach(f=>{
+    const el=document.getElementById('f-'+f.key);
+    if(!el)return;
+    const val=el.value;
+    if(intKeys.includes(f.key))body[f.key]=parseInt(val||0);
+    else body[f.key]=val||null;
+  });
+  const res=await api('/auth/profile',{method:'PUT',body:JSON.stringify(body)});
+  if(res.success){showToast('已更新');closeModal();showProfile();}
+  else showToast(res.message,'error');
+}
+
+// === 头像裁剪 ===
+let _cropper=null;
+function startCrop(input){
+  if(!input.files||!input.files[0])return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=document.getElementById('cropImage');
+    img.src=e.target.result;
+    document.getElementById('cropModal').classList.add('active');
+    if(_cropper)_cropper.destroy();
+    _cropper=new Cropper(img,{aspectRatio:1,viewMode:1,minCropBoxWidth:100,minCropBoxHeight:100});
+  };
+  reader.readAsDataURL(input.files[0]);
+  input.value='';
+}
+function closeCrop(){
+  document.getElementById('cropModal').classList.remove('active');
+  if(_cropper){_cropper.destroy();_cropper=null;}
+}
+async function confirmCrop(){
+  if(!_cropper)return;
+  const canvas=_cropper.getCroppedCanvas({width:256,height:256});
+  _cropper.destroy();_cropper=null;
+  closeCrop();
+  canvas.toBlob(async blob=>{
+    const fd=new FormData();
+    fd.append('avatar',blob,'avatar.jpg');
+    const res=await fetch(API+'/auth/avatar',{method:'POST',body:fd});
+    const data=await res.json();
+    if(data.success){showToast('头像已更新');afterLogin(document.getElementById('dropName').textContent);}
+    else showToast(data.message,'error');
+  },'image/jpeg',0.9);
+}
+// 注册表单添加头像
+function showRegister(){
+  const el=document.getElementById('auth-page');
+  let h=`<div class="auth-box" style="width:500px"><h2>🎵 注册新账号</h2>
+    <form id="authForm">
+      <div style="text-align:center;margin-bottom:16px">
+        <img id="regAvatarPreview" src="data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 100 100\\"><rect fill=\\"%23eee\\" width=\\"100\\" height=\\"100\\"/><text x=\\"50\\" y=\\"58\\" text-anchor=\\"middle\\" font-size=\\"40\\" fill=\\"%23999\\">📷</text></svg>" style="width:80px;height:80px;border-radius:50%;object-fit:cover;cursor:pointer;border:2px dashed #ccc" onclick="document.getElementById('regAvatarInput').click()">
+        <div style="font-size:12px;color:#999;margin-top:4px">点击上传头像</div>
+        <input id="regAvatarInput" type="file" accept="image/*" style="display:none" onchange="regStartCrop(this)">
+      </div>`;
 let _attLookupState={};
 async function attLookup(){
   const pn=document.getElementById('f-personName').value.trim();

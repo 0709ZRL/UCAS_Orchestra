@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS persons (
   managerJob TINYINT NOT NULL DEFAULT 0 COMMENT '0=普通干事 1=团长 2=业务副团长 3=人事副团长 4=后勤组长 5=宣传组长 6=学生指挥 7=指挥助理 8=指挥',
   instrument VARCHAR(256) COMMENT '多个乐器用分号分隔',
   isMaster TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0=否 1=是（声部首席）',
+  avatarhash VARCHAR(255) COMMENT '头像图片SHA256哈希',
   PRIMARY KEY (personalId),
   UNIQUE KEY UNQ_Persons_Account (account)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
