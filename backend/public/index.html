@@ -906,6 +906,7 @@ function showForm(page,data){
 async function submitForm(page,id){
   if(window._submitting)return;
   window._submitting=true;
+  const release=()=>{window._submitting=false};
   const flds=fields[page];
   const body={};
   const formData=new FormData();
@@ -921,17 +922,17 @@ async function submitForm(page,id){
       return;
     }
     const val=el.value;
-    if(f.required&&!val){valid=false;return}
+    if(f.required&&!val){valid=false;release();return}
     if(intKeys.includes(f.key))body[f.key]=parseInt(val||0);
     else if(f.type==='number')body[f.key]=val?parseInt(val):null;
     else body[f.key]=val||null;
   });
-  if(!valid){showToast('请填写所有必填项','error');return;}
+  if(!valid){showToast('请填写所有必填项','error');release();return;}
   // 非管理人员强制管理职责=0
   if(body.isManager===0)body.managerJob=0;
   // 活动起止时间校验
   if(page==='events' && body.startTime && body.endTime && body.startTime >= body.endTime){
-    showToast('起始时间必须早于结束时间','error');return;
+    showToast('起始时间必须早于结束时间','error');release();return;
   }
 
   const isEdit=!!id;
@@ -941,19 +942,19 @@ async function submitForm(page,id){
       Object.entries(body).forEach(([k,v])=>formData.append(k,v));
       const res=await fetch(API+'/'+page+'/upload',{method:'POST',body:formData});
       const data=await res.json();
-      if(!data.success){showToast(data.message,'error');return;}
+      if(!data.success){showToast(data.message,'error');release();return;}
     } else if(isEdit){
       const res=await api('/'+page+'/'+id,{method:'PUT',body:JSON.stringify(body)});
-      if(!res.success){showToast(res.message,'error');return;}
+      if(!res.success){showToast(res.message,'error');release();return;}
     } else {
       const res=await api('/'+page,{method:'POST',body:JSON.stringify(body)});
-      if(!res.success){showToast(res.message,'error');return;}
+      if(!res.success){showToast(res.message,'error');release();return;}
     }
     showToast(isEdit?'更新成功':'创建成功');
     closeModal();
     loadPage(page);
   }catch(e){showToast('操作失败','error')}
-  window._submitting=false;
+  release();
 }
 
 async function delRow(page,id){
