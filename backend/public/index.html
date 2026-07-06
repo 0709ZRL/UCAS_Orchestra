@@ -45,10 +45,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .auth-hidden{display:none}
 /* 个人信息页 */
 .profile-wrap{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);padding:32px;max-width:600px;margin:0 auto}
-.profile-avatar{text-align:center;margin-bottom:24px;position:relative}
-.profile-avatar img{width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,.15)}
-.profile-avatar .edit-badge{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2d8a4e,#1e6b38);color:#fff;font-size:13px;padding:6px 18px;border-radius:20px;cursor:pointer;white-space:nowrap;border:none;transition:all .2s;box-shadow:0 2px 6px rgba(45,138,78,.3)}
-.profile-avatar .edit-badge:hover{box-shadow:0 4px 12px rgba(45,138,78,.4);transform:translateX(-50%) translateY(-1px)}
+.profile-avatar{text-align:center;margin-bottom:24px}
+.profile-avatar img{width:120px;height:120px;border-radius:50%;object-fit:cover;border:4px solid #fff;box-shadow:0 2px 12px rgba(0,0,0,.15);display:block;margin:0 auto}
+.profile-avatar .edit-badge{display:inline-block;margin-top:10px;background:linear-gradient(135deg,#2d8a4e,#1e6b38);color:#fff;font-size:13px;padding:6px 18px;border-radius:20px;cursor:pointer;white-space:nowrap;border:none;transition:all .2s;box-shadow:0 2px 6px rgba(45,138,78,.3)}
+.profile-avatar .edit-badge:hover{box-shadow:0 4px 12px rgba(45,138,78,.4);transform:translateY(-1px)}
 .profile-field{display:flex;padding:12px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
 .profile-field .pl{width:120px;color:#888;flex-shrink:0}
 .profile-field .pv{flex:1;color:#333}
@@ -693,7 +693,8 @@ $$('.sidebar a').forEach(a=>a.addEventListener('click',e=>{
   const page=a.dataset.page;
   $$('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+page).classList.add('active');
-  loadPage(page);
+  if(page==='profile')showProfile();
+  else loadPage(page);
 }));
 
 async function api(path,opts={}){
