@@ -20,9 +20,34 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static('public'));
+
+// 静态文件（JS/CSS/图片等，不含 HTML）
+app.use('/css', express.static(path.join(__dirname, '../public/css')));
+app.use('/js', express.static(path.join(__dirname, '../public/js')));
+app.use('/cropper.min.css', express.static(path.join(__dirname, '../public/cropper.min.css')));
+app.use('/cropper.min.js', express.static(path.join(__dirname, '../public/cropper.min.js')));
 // 暴露上传目录用于 PDF 预览
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// MPA 页面路由
+const pageRoutes = {
+  '/': 'home.html',
+  '/login': 'login.html',
+  '/register': 'register.html',
+  '/home': 'home.html',
+  '/profile': 'profile.html',
+  '/persons': 'persons.html',
+  '/events': 'events.html',
+  '/attendance': 'attendance.html',
+  '/scores': 'scores.html',
+  '/logistics': 'logistics.html',
+  '/articles': 'articles.html'
+};
+Object.entries(pageRoutes).forEach(([route, file]) => {
+  app.get(route, (_req, res) => {
+    res.sendFile(path.join(__dirname, '../public', file));
+  });
+});
 
 // API 路由
 app.use('/api/persons', personsRouter);

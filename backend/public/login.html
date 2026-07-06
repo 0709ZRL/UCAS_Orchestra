@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 - 乐团管理平台</title>
+<link rel="stylesheet" href="/css/shared.css">
+</head>
+<body>
+<div id="auth-page" class="auth-page" style="display:flex">
+  <div class="auth-box">
+    <h2>🎵 乐团管理系统</h2>
+    <form id="authForm">
+      <div class="form-group"><label>账号</label><input id="loginAccount" type="text" placeholder="请输入账号"></div>
+      <div class="form-group"><label>密码</label><input id="loginPassword" type="password" placeholder="请输入密码"></div>
+    </form>
+    <button class="auth-btn" onclick="doLogin()">登 录</button>
+    <div class="auth-link">还没有账号？<a href="/register">立即注册</a></div>
+    <div id="authErr" style="color:#e94560;text-align:center;margin-top:12px;font-size:14px"></div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="/js/shared/constants.js"></script>
+<script src="/js/shared/utils.js"></script>
+<script src="/js/shared/auth.js"></script>
+</body>
+</html>

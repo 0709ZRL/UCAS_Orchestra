@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>注册 - 乐团管理平台</title>
+<link rel="stylesheet" href="/css/shared.css">
+<link rel="stylesheet" href="/cropper.min.css">
+</head>
+<body>
+<div id="auth-page" class="auth-page" style="display:flex">
+  <div class="auth-box" style="width:500px">
+    <h2>🎵 注册新账号</h2>
+    <form id="authForm">
+      <div style="text-align:center;margin-bottom:16px">
+        <img id="regAvatarPreview" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23eee' width='100' height='100'/%3E%3Ctext x='50' y='58' text-anchor='middle' font-size='40' fill='%23999'%3E📷%3C/text%3E%3C/svg%3E" style="width:80px;height:80px;border-radius:50%;object-fit:cover;cursor:pointer;border:2px dashed #ccc" onclick="document.getElementById('regAvatarInput').click()">
+        <div style="font-size:12px;color:#999;margin-top:4px">点击上传头像</div>
+        <input id="regAvatarInput" type="file" accept="image/*" style="display:none" onchange="regStartCrop(this)">
+      </div>
+    </form>
+    <div id="regFields"></div>
+    <button class="auth-btn" onclick="doRegister()">注 册</button>
+    <div class="auth-link">已有账号？<a href="/login">返回登录</a></div>
+    <div id="authErr" style="color:#e94560;text-align:center;margin-top:12px;font-size:14px"></div>
+  </div>
+</div>
+<!-- 裁剪弹窗 -->
+<div id="cropModal" class="crop-overlay">
+  <div class="crop-box">
+    <div class="crop-area"><img id="cropImage" src=""></div>
+    <div class="crop-actions">
+      <button class="btn-cancel" onclick="closeCrop()">取消</button>
+      <button class="btn-green" onclick="confirmCrop()">✅ 确认裁剪</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="/js/shared/constants.js"></script>
+<script src="/js/shared/utils.js"></script>
+<script src="/js/shared/auth.js"></script>
+<script>
+// 生成注册表单字段
+(function() {
+  let h = '';
+  REG_FIELDS.forEach(f => {
+    let extra = '';
+    if (f.key === 'isManager') extra = ' onchange="var r=document.getElementById(\'reg-managerJob\');if(r){r.closest(\'.form-group\').style.display=this.value===\'1\'?\'\':\'none\';}"';
+    const inp = f.type === 'select'
+      ? `<select id="reg-${f.key}"${extra}>${f.options.map(o => `<option value="${o.v}" ${f.default===o.v?'selected':''}>${o.t}</option>`).join('')}</select>`
+      : `<input id="reg-${f.key}" type="${f.type||'text'}" ${f.required?'required':''} placeholder="请输入${f.label}">`;
+    h += `<div class="form-group"><label>${f.label}${f.required?' *':''}</label>${inp}</div>`;
+  });
+  document.getElementById('regFields').innerHTML = h;
+  // 初始隐藏管理职责
+  const mgr = document.getElementById('reg-isManager');
+  if (mgr) mgr.dispatchEvent(new Event('change'));
+})();
+</script>
+<script src="/cropper.min.js"></script>
+</body>
+</html>
