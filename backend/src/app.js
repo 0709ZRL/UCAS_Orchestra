@@ -11,6 +11,7 @@ const attendanceRouter = require('./routes/attendance');
 const scoresRouter = require('./routes/scores');
 const logisticsRouter = require('./routes/logistics');
 const authRouter = require('./routes/auth');
+const articlesRouter = require('./routes/articles');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,6 +31,7 @@ app.use('/api/attendance', attendanceRouter);
 app.use('/api/scores', scoresRouter);
 app.use('/api/logistics', logisticsRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/articles', articlesRouter);
 
 // 健康检查
 app.get('/api/health', (_req, res) => {
