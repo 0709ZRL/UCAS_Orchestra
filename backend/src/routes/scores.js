@@ -176,9 +176,15 @@ router.put('/:scoreId/file', (req, res, next) => {
 router.put('/:scoreId', async (req, res, next) => {
   try {
     const fields = ['title', 'isTotal', 'section'];
-    const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
+    const sets = [];
+    const values = [];
+    fields.forEach(f => {
+      if (req.body[f] === undefined) return;
+      sets.push(`${f} = ?`);
+      if (f === 'isTotal') values.push(parseInt(req.body[f]) || 0);
+      else values.push(req.body[f]);
+    });
     if (!sets.length) return res.status(400).json({ success: false, message: '没有需要更新的字段' });
-    const values = fields.filter(f => req.body[f] !== undefined).map(f => req.body[f]);
     values.push(req.params.scoreId);
     const [result] = await pool.query(`UPDATE scores SET ${sets.join(', ')} WHERE scoreId = ?`, values);
     if (!result.affectedRows) return res.status(404).json({ success: false, message: '未找到该乐谱' });
