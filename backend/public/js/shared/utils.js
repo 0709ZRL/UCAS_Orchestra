@@ -66,6 +66,11 @@ function toggleOwner() {
   const row = document.getElementById('fg-belongsToId');
   if (el && row) row.style.display = el.value === '0' ? '' : 'none';
 }
+function toggleScoreSection() {
+  const el = document.getElementById('f-isTotal');
+  const row = document.getElementById('fg-section');
+  if (el && row) row.style.display = el.value === '1' ? 'none' : '';
+}
 function syncEndTimeMin() {
   const st = document.getElementById('f-startTime');
   const et = document.getElementById('f-endTime');
@@ -273,6 +278,7 @@ function showForm(page, data) {
   if (page === 'persons') toggleAfterOpen = 'toggleManagerJob';
   else if (page === 'logistics') toggleAfterOpen = 'toggleOwner';
   else if (page === 'events') toggleAfterOpen = 'syncEndTimeMin';
+  else if (page === 'scores') toggleAfterOpen = 'toggleScoreSection';
 
   flds.forEach((f, i) => {
     if (!isEdit && f.readonly) return;
@@ -298,6 +304,7 @@ function showForm(page, data) {
       if (page === 'persons' && f.key === 'isManager') extra = ' onchange="toggleManagerJob()"';
       if (page === 'logistics' && f.key === 'isPublic') extra = ' onchange="toggleOwner()"';
       if (page === 'events' && f.key === 'startTime') extra = ' onchange="syncEndTimeMin()"';
+      if (page === 'scores' && f.key === 'isTotal') extra = ' onchange="toggleScoreSection()"';
       inp = `<select id="f-${f.key}"${extra}>${f.options.map(o => `<option value="${o.v}" ${String(val)==String(o.v)?'selected':''}>${o.t}</option>`).join('')}</select>`;
     } else {
       inp = `<input id="f-${f.key}" type="${f.type||'text'}" value="${val||''}" ${f.required?'required':''}>`;
