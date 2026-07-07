@@ -175,18 +175,24 @@ router.put('/:scoreId/file', (req, res, next) => {
 // PUT /api/scores/:scoreId — 更新元信息（不更新文件）
 router.put('/:scoreId', async (req, res, next) => {
   try {
-    const fields = ['title', 'isTotal', 'section'];
+    const updFields = ['title', 'isTotal', 'section'];
     const sets = [];
     const values = [];
-    fields.forEach(f => {
+    updFields.forEach(f => {
       if (req.body[f] === undefined) return;
       sets.push(`${f} = ?`);
-      if (f === 'isTotal') values.push(parseInt(req.body[f]) || 0);
-      else values.push(req.body[f]);
+      if (f === 'isTotal') {
+        // mysql2 对混合类型的预编译语句在 UNIQUE 索引校验时会类型报错
+        // 所以 isTotal 传字符串让 MySQL 自行转换
+        values.push(String(parseInt(String(req.body[f]), 10) || 0));
+      } else {
+        values.push(req.body[f]);
+      }
     });
     if (!sets.length) return res.status(400).json({ success: false, message: '没有需要更新的字段' });
     values.push(req.params.scoreId);
-    const [result] = await pool.query(`UPDATE scores SET ${sets.join(', ')} WHERE scoreId = ?`, values);
+    const sql = `UPDATE scores SET ${sets.join(', ')} WHERE scoreId = ?`;
+    const [result] = await pool.query(sql, values);
     if (!result.affectedRows) return res.status(404).json({ success: false, message: '未找到该乐谱' });
     res.json({ success: true, message: '已更新' });
   } catch (err) { next(err); }
