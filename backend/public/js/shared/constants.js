@@ -61,8 +61,8 @@ const PROFILE_MAP = {
 };
 
 // 文章类型
-const TYPE_LABELS = ['排练通知','演出通知','乐团新闻'];
-const TYPE_TAGS = ['t0','t1','t2'];
+const TYPE_LABELS = ['排练通知','演出通知','乐团新闻','乐谱下载'];
+const TYPE_TAGS = ['t0','t1','t2','t3'];
 
 // 搜索字段配置（每个页面）
 function getSearchFields(page) {

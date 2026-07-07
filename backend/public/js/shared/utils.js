@@ -187,7 +187,9 @@ async function submitForm(page, id) {
   const body = {};
   const formData = new FormData();
   let hasFile = false, valid = true;
-  const intKeys = ['gender','campus','section','job','isManager','managerJob','isMaster','isTotal','isPublic','year','month','date'];
+  // section 仅在 persons 等页面为整数，scores 中为字符串
+  const intKeys = ['gender','campus','job','isManager','managerJob','isMaster','isTotal','isPublic','year','month','date'];
+  const stringSectionPages = { scores: true };
 
   flds.forEach(f => {
     const el = document.getElementById('f-' + f.key);
@@ -199,9 +201,15 @@ async function submitForm(page, id) {
     }
     const val = el.value;
     if (f.required && !val) { valid = false; release(); return; }
-    if (intKeys.includes(f.key)) body[f.key] = parseInt(val || 0);
-    else if (f.type === 'number') body[f.key] = val ? parseInt(val) : null;
-    else body[f.key] = val || null;
+    if (stringSectionPages[page] && f.key === 'section') {
+      body[f.key] = val || '';
+    } else if (intKeys.includes(f.key)) {
+      body[f.key] = parseInt(val || 0);
+    } else if (f.type === 'number') {
+      body[f.key] = val ? parseInt(val) : null;
+    } else {
+      body[f.key] = val || null;
+    }
   });
   if (!valid) { showToast('请填写所有必填项', 'error'); release(); return; }
   if (body.isManager === 0) body.managerJob = 0;
@@ -212,10 +220,18 @@ async function submitForm(page, id) {
   const isEdit = !!id;
   try {
     if (hasFile) {
-      Object.entries(body).forEach(([k, v]) => formData.append(k, v));
-      const res = await fetch('/api/' + page + '/upload', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!data.success) { showToast(data.message, 'error'); release(); return; }
+      // 编辑乐谱时替换文件 → PUT 到 file-replace 端点
+      if (isEdit && page === 'scores') {
+        Object.entries(body).forEach(([k, v]) => formData.append(k, v));
+        const res = await fetch('/api/scores/' + id + '/file', { method: 'PUT', body: formData });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message, 'error'); release(); return; }
+      } else {
+        Object.entries(body).forEach(([k, v]) => formData.append(k, v));
+        const res = await fetch('/api/' + page + '/upload', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!data.success) { showToast(data.message, 'error'); release(); return; }
+      }
     } else if (isEdit) {
       const res = await api('/' + page + '/' + id, { method: 'PUT', body: JSON.stringify(body) });
       if (!res.success) { showToast(res.message, 'error'); release(); return; }
@@ -271,7 +287,9 @@ function showForm(page, data) {
     if (f.readonly) {
       inp = `<input id="f-${f.key}" type="text" value="${val||''}" readonly style="background:#f5f5f5">`;
     } else if (f.type === 'file') {
-      if (isEdit) return;
+      // 编辑乐谱时允许替换文件
+      if (isEdit && page !== 'scores') return;
+      const placeholder = isEdit ? ' (不选则保留原文件)' : '';
       inp = `<input id="f-${f.key}" type="file" accept="${f.accept||''}">`;
     } else if (f.type === 'textarea') {
       inp = `<textarea id="f-${f.key}">${val||''}</textarea>`;

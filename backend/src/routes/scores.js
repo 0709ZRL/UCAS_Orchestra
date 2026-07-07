@@ -130,6 +130,48 @@ router.post('/upload', (req, res, next) => {
   });
 });
 
+// PUT /api/scores/:scoreId/file — 替换乐谱 PDF 文件
+router.put('/:scoreId/file', (req, res, next) => {
+  upload.single('file')(req, res, async (err) => {
+    if (err) {
+      if (err.message === '仅允许上传 PDF 文件') return res.status(400).json({ success: false, message: err.message });
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ success: false, message: '文件大小不能超过 50MB' });
+      return next(err);
+    }
+    try {
+      const [rows] = await pool.query('SELECT * FROM scores WHERE scoreId = ?', [req.params.scoreId]);
+      if (!rows.length) return res.status(404).json({ success: false, message: '未找到该乐谱' });
+      if (!req.file) return res.status(400).json({ success: false, message: '请上传 PDF 文件' });
+
+      const filehash = await computeHash(req.file.path);
+      const oldRecord = rows[0];
+
+      // 删除旧文件
+      const oldFilePath = path.join(UPLOAD_DIR, oldRecord.filehash + '.pdf');
+      if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+
+      // 用哈希重命名新文件
+      const newPath = path.join(UPLOAD_DIR, filehash + '.pdf');
+      fs.renameSync(req.file.path, newPath);
+
+      // 更新数据库：filehash + 可选的 title/isTotal/section
+      const { title, isTotal, section } = req.body;
+      const sets = ['filehash = ?'];
+      const values = [filehash];
+      if (title !== undefined) { sets.push('title = ?'); values.push(title); }
+      if (isTotal !== undefined) { sets.push('isTotal = ?'); values.push(parseInt(isTotal)); }
+      if (section !== undefined) { sets.push('section = ?'); values.push(section); }
+      values.push(req.params.scoreId);
+
+      await pool.query(`UPDATE scores SET ${sets.join(', ')} WHERE scoreId = ?`, values);
+      res.json({ success: true, message: '乐谱文件已更新' });
+    } catch (e) {
+      if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+      next(e);
+    }
+  });
+});
+
 // PUT /api/scores/:scoreId — 更新元信息（不更新文件）
 router.put('/:scoreId', async (req, res, next) => {
   try {

@@ -49,6 +49,26 @@ Object.entries(pageRoutes).forEach(([route, file]) => {
   });
 });
 
+// 文章详情页路由（共享首页模板，JS 自行判断渲染内容）
+app.get('/article/:id', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public', 'home.html'));
+});
+
+// 按类型查看文章列表路由
+app.get('/articles/type/:typeId', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public', 'home.html'));
+});
+
+// 乐谱详情页路由
+app.get('/score/:id', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public', 'home.html'));
+});
+
+// 乐谱列表页路由
+app.get('/scores-list', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public', 'home.html'));
+});
+
 // API 路由
 app.use('/api/persons', personsRouter);
 app.use('/api/events', eventsRouter);
