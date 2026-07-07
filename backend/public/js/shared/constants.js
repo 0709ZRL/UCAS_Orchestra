@@ -24,7 +24,12 @@ const fields = {
   scores: [
     { key:'title', label:'乐谱名', required:true },
     { key:'isTotal', label:'是否为总谱', type:'select', options:[{v:0,t:'分谱'},{v:1,t:'总谱'}], default:0 },
-    { key:'section', label:'所属声部' },
+    { key:'section', label:'所属声部', type:'select', options:[
+      {v:'民族管乐声部', t:'民族管乐声部'},{v:'弹拨一组', t:'弹拨一组'},{v:'弹拨二组', t:'弹拨二组'},
+      {v:'胡琴声部', t:'胡琴声部'},{v:'提琴声部', t:'提琴声部'},{v:'西洋木管声部', t:'西洋木管声部'},
+      {v:'西洋铜管声部', t:'西洋铜管声部'},{v:'低音声部', t:'低音声部'},{v:'钢琴声部', t:'钢琴声部'},
+      {v:'打击声部', t:'打击声部'},{v:'无声部', t:'无声部'}
+    ], default:'' },
     { key:'file', label:'PDF 文件', type:'file', accept:'.pdf' }
   ],
   articles: [
