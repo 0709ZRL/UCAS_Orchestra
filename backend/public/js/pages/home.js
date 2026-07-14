@@ -1,4 +1,20 @@
 // 首页渲染
+// 将富文本HTML转为纯文本摘要（处理残缺标签、HTML实体）
+function summarizeHtml(html, maxLen) {
+  if (!html) return '';
+  let s = html
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    // 去除所有 <...> 以及不完整的 <...（被截断的标签）
+    .replace(/<[^>]*>/g, '')
+    .replace(/<[^>]*/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&[a-z]+;/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (maxLen && s.length > maxLen) s = s.substring(0, maxLen) + '…';
+  return s;
+}
+
 async function renderHomepage() {
   const el = document.getElementById('page-home');
   if (!el) return;
@@ -62,7 +78,7 @@ async function renderHomepage() {
       showList.forEach(a => {
         html += '<div class="hs-card" onclick="showArticleDetail(' + a.articleId + ')">'
           + '<div class="hs-card-title">' + escHtml(a.title) + '</div>'
-          + '<div class="hs-card-summary">' + escHtml((a.summary || a.content || '暂无').substring(0, 120)) + '</div>'
+          + '<div class="hs-card-summary">' + summarizeHtml(a.summary || a.content, 120) + '</div>'
           + '<div class="hs-card-date">' + (a.createdAt ? a.createdAt.replace('T', ' ').substring(0, 16) : '') + '</div></div>';
       });
     } else {
@@ -95,6 +111,70 @@ async function renderHomepage() {
   html += '</div></div>';
   el.innerHTML = html;
   scrollToTop();
+  // 渲染完成后检查报名弹窗
+  checkEventModal();
+}
+
+// ===== 活动报名弹窗 =====
+function checkEventModal() {
+  fetch('/api/register/next-event').then(r => r.json()).then(res => {
+    if (!res.success || !res.data || res.data.registered) return;
+    const ev = res.data;
+    const overlay = document.createElement('div');
+    overlay.id = 'rehearsal-overlay';
+    overlay.innerHTML = '<div class="rehearsal-backdrop" onclick="closeRehearsal(event)"></div>'
+      + '<div class="rehearsal-modal">'
+      + '<div class="rehearsal-badge">📢 活动报名</div>'
+      + '<h2 class="rehearsal-title">' + escHtml(ev.title) + '</h2>'
+      + '<div class="rehearsal-time">🕐 ' + (ev.startTime || '').replace('T',' ').substring(0,16) + ' ~ ' + (ev.endTime || '').replace('T',' ').substring(0,16) + '</div>'
+      + '<div class="rehearsal-desc">' + escHtml((ev.appendix || ev.title || '').substring(0, 200)) + '</div>'
+      + '<div class="rehearsal-actions">'
+      + '<button class="rehearsal-detail-btn" onclick="closeRehearsal()">关闭</button>'
+      + '</div>'
+      + '<div class="rehearsal-register-row">'
+      + '<button class="rehearsal-register-btn" id="rehearsalRegBtn" onclick="doEventRegister(' + ev.articleId + ')">报 名</button>'
+      + '</div></div>';
+    document.body.appendChild(overlay);
+    requestAnimationFrame(() => {
+      overlay.querySelector('.rehearsal-modal').classList.add('show');
+    });
+  }).catch(() => {});
+}
+
+// 关闭弹窗
+function closeRehearsal(e) {
+  if (e && e.target && !e.target.classList.contains('rehearsal-backdrop')) return;
+  const overlay = document.getElementById('rehearsal-overlay');
+  if (overlay) {
+    overlay.querySelector('.rehearsal-modal')?.classList.remove('show');
+    setTimeout(() => overlay.remove(), 400);
+  }
+}
+
+// 报名活动
+async function doEventRegister(eventId) {
+  if (window._registering) return;
+  window._registering = true;
+  const btn = document.getElementById('rehearsalRegBtn');
+  if (btn) { btn.textContent = '✓'; btn.classList.add('registered'); }
+  const res = await fetch('/api/register/event/' + eventId, { method: 'POST', credentials: 'same-origin' }).then(r => r.json());
+  if (res.success) {
+    const overlay = document.getElementById('rehearsal-overlay');
+    if (overlay) {
+      overlay.querySelector('.rehearsal-modal')?.classList.add('hiding');
+      setTimeout(() => { overlay.remove(); showToast('🎉 报名成功！'); }, 600);
+    }
+  } else {
+    if (btn) { btn.textContent = '报 名'; btn.classList.remove('registered'); }
+    showToast(res.message || '报名失败', 'error');
+  }
+  window._registering = false;
+}
+
+// 读取 cookie（保留备用）
+function getCookie(name) {
+  const m = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+  return m ? m[2] : null;
 }
 
 // ===== 以下函数已在上方使用，但需在此重新声明以供 hoisting =====
@@ -125,7 +205,7 @@ async function showScoreDetail(id) {
   const pdfUrl = '/api/scores/' + s.scoreId + '/file';
   let html = '<div class="sd-wrap">'
     + '<div class="sd-header">'
-    + '<button class="btn" onclick="goHome()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回首页</button>'
+    + '<button class="btn" onclick="history.back()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回</button>'
     + '<h2>' + escHtml(s.title) + '</h2>'
     + '</div>'
     + '<div class="sd-meta">'
@@ -181,7 +261,7 @@ async function showAllScores(page) {
   const totalPages = Math.ceil(total / SCORE_PAGE_SIZE) || 1;
   let html = '<div class="al-wrap">'
     + '<div class="al-header">'
-    + '<button class="btn" onclick="goHome()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回首页</button>'
+    + '<button class="btn" onclick="history.back()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回</button>'
     + '<h2>乐谱下载（共' + total + '份）</h2>'
     + '</div>';
   if (!list.length) {
@@ -243,7 +323,7 @@ async function showAllArticles(type, page) {
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
   let html = '<div class="al-wrap">'
     + '<div class="al-header">'
-    + '<button class="btn" onclick="goHome()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回首页</button>'
+    + '<button class="btn" onclick="history.back()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回</button>'
     + '<h2>' + TYPE_LABELS[type] + '（共' + total + '条）</h2>'
     + '</div>';
   if (!list.length) {
@@ -254,7 +334,7 @@ async function showAllArticles(type, page) {
         + '<span class="mtag ' + TYPE_TAGS[a.type] + ' al-tag">' + TYPE_LABELS[a.type] + '</span>'
         + '<div class="al-body">'
         + '<div class="al-title">' + escHtml(a.title) + '</div>'
-        + '<div class="al-summary">' + escHtml((a.summary || a.content || '').substring(0, 80)) + '</div>'
+        + '<div class="al-summary">' + summarizeHtml(a.summary || a.content, 80) + '</div>'
         + '</div>'
         + '<div class="al-date">' + (a.createdAt ? a.createdAt.replace('T', ' ').substring(0, 16) : '') + '</div>'
         + '</div>';
@@ -300,16 +380,84 @@ async function showArticleDetail(id) {
   }
   const a = res.data;
   el.innerHTML = '<div style="max-width:800px;margin:0 auto;background:#fff;border-radius:10px;padding:32px;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
-    + '<div style="margin-bottom:16px"><button class="btn" onclick="goHome()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回首页</button></div>'
+    + '<div style="margin-bottom:16px"><button class="btn" onclick="history.back()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回</button></div>'
     + '<h2 style="font-size:22px;margin-bottom:8px">' + escHtml(a.title) + '</h2>'
     + '<div style="font-size:14px;color:#999;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #f0f0f0">'
     + '<span class="mtag ' + TYPE_TAGS[a.type] + '" style="margin-right:10px">' + TYPE_LABELS[a.type] + '</span>'
     + (a.createdAt || '').replace('T', ' ').substring(0, 16)
     + '</div>'
-    + '<div style="font-size:15px;line-height:1.9;color:#444;white-space:pre-wrap">' + escHtml(a.content || '无内容') + '</div>'
-    + '<div style="margin-top:24px"><button class="btn" onclick="goHome()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回首页</button></div>'
+    + '<div class="article-content" style="font-size:15px;line-height:1.9;color:#444;padding:0 4px">' + (a.content || '无内容') + '</div>'
+    + ((a.type === 0 || a.type === 1) && a.startTime ? '<div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap"><span style="font-size:13px;color:#888">🕐 ' + (a.startTime||'').replace('T',' ').substring(0,16) + ' ~ ' + (a.endTime||'').replace('T',' ').substring(0,16) + '</span></div>' : '')
+    + '<div style="margin-top:24px;display:flex;gap:8px">'
+    + '<button class="btn" onclick="history.back()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回</button>'
+    + ((a.type === 0 || a.type === 1) && a.endTime && new Date(a.endTime) > new Date() ? '<button class="btn rehearsal-detail-reg-btn" onclick="doDetailRegister(' + a.articleId + ')">📝 报名</button>' : '')
+    + '</div>'
     + '</div>';
   scrollToTop();
+}
+
+// 详情页报名
+async function doDetailRegister(articleId) {
+  if (window._registering) return;
+  window._registering = true;
+  const res = await fetch('/api/register/event/' + articleId, { method: 'POST', credentials: 'same-origin' }).then(r => r.json());
+  if (res.success) showToast('🎉 报名成功！');
+  else showToast(res.message || '报名失败', 'error');
+  window._registering = false;
+}
+
+// 我的报名
+async function showMyRegistrations() {
+  const expectedPath = '/my-registrations';
+  if (window.location.pathname !== expectedPath) {
+    history.pushState({ page: 'my-registrations' }, '', expectedPath);
+  } else {
+    history.replaceState({ page: 'my-registrations' }, '', expectedPath);
+  }
+  document.title = '我的报名 - 乐团管理平台';
+  const el = document.getElementById('page-home');
+  if (!el) return;
+  el.innerHTML = '<div style="text-align:center;padding:40px">⏳ 加载中...</div>';
+  const res = await fetch('/api/register/my', { credentials: 'same-origin' }).then(r => r.json());
+  if (!res.success || !res.data) {
+    el.innerHTML = '<p style="padding:40px;text-align:center;color:#999">加载失败</p>';
+    return;
+  }
+  const list = res.data;
+  const now = new Date();
+  let html = '<div style="max-width:800px;margin:0 auto">'
+    + '<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">'
+    + '<button class="btn" onclick="goHome()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回首页</button>'
+    + '<h2 style="font-size:20px">我的报名（共' + list.length + '条）</h2>'
+    + '</div>';
+  if (!list.length) {
+    html += '<div style="text-align:center;padding:60px;color:#ccc;font-size:16px">暂无报名记录</div>';
+  } else {
+    list.forEach(r => {
+      if (!r.articleId) return; // 跳过无关联数据的记录
+      const isPast = r.endTime && new Date(r.endTime) < now;
+      const timeStr = r.startTime ? (r.startTime||'').replace('T',' ').substring(0,16) + ' ~ ' + (r.endTime||'').replace('T',' ').substring(0,16) : '';
+      html += '<div style="background:#fff;border-radius:10px;padding:16px 20px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'
+        + '<div style="display:flex;align-items:center;gap:12px">'
+        + '<span class="mtag ' + (r.type === 0 || r.type === 1 ? TYPE_TAGS[r.type] : 't0') + '">' + (r.type === 0 ? '排练' : r.type === 1 ? '演出' : '活动') + '</span>'
+        + '<span style="flex:1;font-weight:600;font-size:15px;cursor:pointer;color:#1a1a2e" onclick="showArticleDetail(' + r.articleId + ')">' + escHtml(r.title) + '</span>'
+        + (isPast ? '<span style="font-size:12px;color:#999">已结束</span>' : '<button class="btn btn-sm" onclick="cancelRegistration(' + r.articleId + ')" style="background:linear-gradient(135deg,#e94560,#c73650)">取消报名</button>')
+        + '</div>'
+        + (timeStr ? '<div style="font-size:12px;color:#999;margin-top:6px">🕐 ' + timeStr + '</div>' : '')
+        + '</div>';
+    });
+  }
+  html += '</div>';
+  el.innerHTML = html;
+  scrollToTop();
+}
+
+// 取消报名
+async function cancelRegistration(articleId) {
+  if (!confirm('确定要取消报名吗？')) return;
+  const res = await fetch('/api/register/event/' + articleId, { method: 'DELETE', credentials: 'same-origin' }).then(r => r.json());
+  if (res.success) { showToast('已取消报名'); showMyRegistrations(); }
+  else showToast(res.message || '取消失败', 'error');
 }
 
 // 返回首页（使用 History API）
@@ -332,6 +480,7 @@ window.addEventListener('popstate', function(e) {
   const typeMatch = path.match(/^\/articles\/type\/(\d+)$/);
   const scoreMatch = path.match(/^\/score\/(\d+)$/);
   const scoresMatch = path === '/scores-list';
+  const myRegMatch = path === '/my-registrations';
   scrollToTop();
   if (artMatch) {
     showArticleDetail(parseInt(artMatch[1]));
@@ -341,6 +490,8 @@ window.addEventListener('popstate', function(e) {
     showScoreDetail(parseInt(scoreMatch[1]));
   } else if (scoresMatch) {
     showAllScores(parseInt(params.get('page')) || 1);
+  } else if (myRegMatch) {
+    showMyRegistrations();
   } else {
     document.title = '首页 - 乐团管理平台';
     renderHomepage();
@@ -360,6 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const typeMatch = path.match(/^\/articles\/type\/(\d+)$/);
     const scoreMatch = path.match(/^\/score\/(\d+)$/);
     const scoresMatch = path === '/scores-list';
+    const myRegMatch = path === '/my-registrations';
     if (artMatch) {
       showArticleDetail(parseInt(artMatch[1]));
     } else if (typeMatch) {
@@ -368,6 +520,8 @@ document.addEventListener('DOMContentLoaded', function() {
       showScoreDetail(parseInt(scoreMatch[1]));
     } else if (scoresMatch) {
       showAllScores(parseInt(params.get('page')) || 1);
+    } else if (myRegMatch) {
+      showMyRegistrations();
     } else {
       renderHomepage();
     }

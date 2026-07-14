@@ -9,7 +9,14 @@ router.get('/', async (req, res, next) => {
     let where = 'WHERE 1=1';
     const params = [];
     if (personalId) { where += ' AND a.personalId = ?'; params.push(personalId); }
-    if (eventId) { where += ' AND a.eventId = ?'; params.push(eventId); }
+    if (eventId) {
+      // 支持纯数字（自动转 ARTICLE_ 前缀）或完整 eventId
+      if (/^\d+$/.test(eventId)) {
+        where += ' AND a.eventId = ?'; params.push('ARTICLE_' + eventId);
+      } else {
+        where += ' AND a.eventId = ?'; params.push(eventId);
+      }
+    }
 
     const [countRows] = await pool.query(
       `SELECT COUNT(*) AS total FROM attendance a ${where}`, params
@@ -17,10 +24,13 @@ router.get('/', async (req, res, next) => {
     const total = countRows[0].total;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    const sql = `SELECT a.*, p.name AS personName, e.title AS eventTitle
+    const sql = `SELECT a.*, p.name AS personName,
+                 COALESCE(e.title, ar.title) AS eventTitle,
+                 CASE WHEN a.eventId LIKE 'ARTICLE_%' THEN REPLACE(a.eventId, 'ARTICLE_', '') ELSE a.eventId END AS displayEventId
                  FROM attendance a
                  LEFT JOIN persons p ON a.personalId = p.personalId
                  LEFT JOIN events e ON a.eventId = e.eventId
+                 LEFT JOIN articles ar ON a.eventId = CONCAT('ARTICLE_', ar.articleId)
                  ${where}
                  ORDER BY a.attendanceId DESC LIMIT ? OFFSET ?`;
     const allParams = [...params, parseInt(limit), offset];

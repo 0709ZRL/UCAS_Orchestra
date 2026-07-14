@@ -224,7 +224,29 @@ async function submitForm(page, id) {
 
   const isEdit = !!id;
   try {
-    if (hasFile) {
+    // 文章图片多文件上传特殊处理
+    if (page === 'articles') {
+      const fileEl = document.getElementById('f-images');
+      const existing = document.getElementById('f-images-hidden')?.value || '';
+      let filenames = existing ? existing.split(',').filter(Boolean) : [];
+      if (fileEl && fileEl.files && fileEl.files.length > 0) {
+        for (const file of fileEl.files) {
+          const fd = new FormData();
+          fd.append('image', file);
+          const res = await fetch('/api/articles/upload-image', { method: 'POST', body: fd });
+          const data = await res.json();
+          if (data.success) filenames.push(data.filename);
+        }
+      }
+      body.images = filenames.join(',') || null;
+      if (isEdit) {
+        const res = await api('/' + page + '/' + id, { method: 'PUT', body: JSON.stringify(body) });
+        if (!res.success) { showToast(res.message, 'error'); release(); return; }
+      } else {
+        const res = await api('/' + page, { method: 'POST', body: JSON.stringify(body) });
+        if (!res.success) { showToast(res.message, 'error'); release(); return; }
+      }
+    } else if (hasFile) {
       // 编辑乐谱时替换文件 → PUT 到 file-replace 端点
       if (isEdit && page === 'scores') {
         Object.entries(body).forEach(([k, v]) => formData.append(k, v));
@@ -294,9 +316,14 @@ function showForm(page, data) {
       inp = `<input id="f-${f.key}" type="text" value="${val||''}" readonly style="background:#f5f5f5">`;
     } else if (f.type === 'file') {
       // 编辑乐谱时允许替换文件
-      if (isEdit && page !== 'scores') return;
-      const placeholder = isEdit ? ' (不选则保留原文件)' : '';
-      inp = `<input id="f-${f.key}" type="file" accept="${f.accept||''}">`;
+      if (isEdit && page !== 'scores' && page !== 'articles') return;
+      const placeholder = (isEdit && page !== 'articles') ? ' (不选则保留原文件)' : '';
+      const multipleAttr = f.multiple ? ' multiple' : '';
+      inp = `<input id="f-${f.key}" type="file" accept="${f.accept||''}"${multipleAttr}>`;
+      if (f.multiple && page === 'articles') {
+        inp += `<input id="f-images-hidden" type="hidden" value="${isEdit && data && data.images ? data.images : ''}">`;
+        inp += `<div id="f-images-preview" style="font-size:12px;color:#888;margin-top:4px">${isEdit && data && data.images ? '已有 ' + data.images.split(',').length + ' 张图片，上传新图片将追加' : '支持多选图片'}</div>`;
+      }
     } else if (f.type === 'textarea') {
       inp = `<textarea id="f-${f.key}">${val||''}</textarea>`;
     } else if (f.type === 'select') {

@@ -56,7 +56,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .marquee-inner{display:flex;animation:scrollMarquee 30s linear infinite;width:max-content}
 .marquee-item{display:inline-flex;align-items:center;gap:8px;padding:8px 24px;white-space:nowrap;cursor:pointer;font-size:14px;border-right:1px solid #f0f0f0;transition:background .2s}
 .marquee-item:hover{background:#f8f9ff}
-.mtag{font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;color:#fff;flex-shrink:0}
+.mtag{font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;color:#fff;flex-shrink:0;white-space:nowrap}
 .mtag.t0{background:#e94560}.mtag.t1{background:#667eea}.mtag.t2{background:#2d8a4e}.mtag.t3{background:#e67e22}
 @keyframes scrollMarquee{0%{transform:translateX(0)}100%{transform:translateX(-33.33%)}}
 .home-sections{display:grid;grid-template-columns:repeat(2,1fr);gap:20px}
@@ -148,6 +148,13 @@ th{background:#fafafa;font-weight:600;color:#666;white-space:nowrap}
 tr:hover{background:#f8f9ff}
 .actions{display:flex;gap:4px;flex-wrap:nowrap}
 .actions button{padding:4px 10px;border:none;border-radius:4px;cursor:pointer;font-size:12px;white-space:nowrap}
+.btn-edit{background:#e8f0fe;color:#1a73e8}.btn-edit:hover{background:#d2e3fc}
+.btn-del{background:#fce8e6;color:#d93025}.btn-del:hover{background:#f8d7da}
+/* 编辑器按钮 */
+.editor-btn{padding:5px 12px;border:1px solid #ddd;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;transition:all .15s}
+.editor-btn:hover{background:#e8f0fe;border-color:#1a73e8}
+/* 文章详情内容中的图片限制 */
+.article-content img{max-width:100%;max-height:500px;border-radius:6px;margin:8px 0}
 .btn-edit{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;box-shadow:0 1px 4px rgba(102,126,234,.2)}
 .btn-edit:hover{box-shadow:0 2px 8px rgba(102,126,234,.3)}
 .btn-del{background:linear-gradient(135deg,#e94560,#c73650);color:#fff;box-shadow:0 1px 4px rgba(233,69,96,.2)}
@@ -156,6 +163,28 @@ tr:hover{background:#f8f9ff}
 .pagination{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-size:13px;color:#666;flex-wrap:wrap;gap:8px}
 .pagination button{padding:4px 12px;border:1px solid #d9d9d9;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;transition:all .2s}
 .pagination button:hover:not(:disabled){border-color:#667eea;color:#667eea}
+
+/* 排练报名弹窗 */
+#rehearsal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;display:flex;align-items:center;justify-content:center}
+.rehearsal-backdrop{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);animation:fadeIn .3s}
+.rehearsal-modal{position:relative;background:#fff;border-radius:20px;padding:36px 32px 28px;max-width:480px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3);transform:scale(.85) translateY(30px);opacity:0;transition:all .4s cubic-bezier(.34,1.56,.64,1)}
+.rehearsal-modal.show{transform:scale(1) translateY(0);opacity:1}
+.rehearsal-modal.hiding{transform:scale(.8) translateY(-40px);opacity:0;transition:all .5s cubic-bezier(.55,0,.1,1)}
+.rehearsal-badge{display:inline-block;font-size:12px;background:linear-gradient(135deg,#e94560,#c73650);color:#fff;padding:4px 16px;border-radius:20px;margin-bottom:16px;font-weight:600}
+.rehearsal-title{font-size:20px;color:#1a1a2e;margin-bottom:8px;line-height:1.4}
+.rehearsal-time{font-size:13px;color:#999;margin-bottom:16px}
+.rehearsal-desc{font-size:14px;color:#555;line-height:1.7;margin-bottom:24px;text-align:left;background:#f8f9ff;padding:14px 18px;border-radius:10px;max-height:120px;overflow-y:auto}
+.rehearsal-actions{display:flex;gap:12px;justify-content:center}
+.rehearsal-detail-btn{padding:10px 24px;border:1px solid #d9d9d9;border-radius:10px;background:#fff;color:#555;font-size:14px;cursor:pointer;transition:all .2s;flex:1}
+.rehearsal-detail-btn:hover{border-color:#667eea;color:#667eea}
+.rehearsal-register-row{text-align:center;margin-top:20px}
+.rehearsal-register-btn{width:80px;height:80px;border-radius:50%;border:none;background:linear-gradient(135deg,#e94560,#c73650);color:#fff;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(233,69,96,.4);animation:registerPulse 2s ease-in-out infinite;transition:all .3s;letter-spacing:2px}
+.rehearsal-register-btn:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(233,69,96,.55)}
+.rehearsal-register-btn.registered{animation:none;background:linear-gradient(135deg,#2d8a4e,#1e6b38);box-shadow:0 4px 20px rgba(45,138,78,.4);transform:scale(1.15);width:80px;height:80px;font-size:32px}
+.rehearsal-detail-reg-btn{background:linear-gradient(135deg,#e94560,#c73650);color:#fff !important;box-shadow:0 2px 8px rgba(233,69,96,.3)}
+.rehearsal-detail-reg-btn:hover{box-shadow:0 4px 16px rgba(233,69,96,.4);transform:translateY(-1px)}
+@keyframes registerPulse{0%,100%{box-shadow:0 4px 20px rgba(233,69,96,.4)}50%{box-shadow:0 4px 36px rgba(233,69,96,.7)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .pagination button:disabled{opacity:.5;cursor:default}
 /* 模态框 */
 .modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.4);z-index:1000}

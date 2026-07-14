@@ -6,12 +6,13 @@ require('dotenv').config();
 
 const errorHandler = require('./middleware/errorHandler');
 const personsRouter = require('./routes/persons');
-const eventsRouter = require('./routes/events');
+// eventsRouter removed — merged into articles
 const attendanceRouter = require('./routes/attendance');
 const scoresRouter = require('./routes/scores');
 const logisticsRouter = require('./routes/logistics');
 const authRouter = require('./routes/auth');
 const articlesRouter = require('./routes/articles');
+const registerRouter = require('./routes/register');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,12 +38,13 @@ const pageRoutes = {
   '/home': 'home.html',
   '/profile': 'profile.html',
   '/persons': 'persons.html',
-  '/events': 'events.html',
   '/attendance': 'attendance.html',
   '/scores': 'scores.html',
   '/logistics': 'logistics.html',
   '/articles': 'articles.html'
 };
+// 活动管理重定向到文章管理
+app.get('/events', (_req, res) => { res.redirect('/articles'); });
 Object.entries(pageRoutes).forEach(([route, file]) => {
   app.get(route, (_req, res) => {
     res.sendFile(path.join(__dirname, '../public', file));
@@ -69,14 +71,20 @@ app.get('/scores-list', (_req, res) => {
   res.sendFile(path.join(__dirname, '../public', 'home.html'));
 });
 
+// 我的报名页路由
+app.get('/my-registrations', (_req, res) => {
+  res.sendFile(path.join(__dirname, '../public', 'home.html'));
+});
+
 // API 路由
 app.use('/api/persons', personsRouter);
-app.use('/api/events', eventsRouter);
+// app.use('/api/events') removed
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/scores', scoresRouter);
 app.use('/api/logistics', logisticsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/articles', articlesRouter);
+app.use('/api/register', registerRouter);
 
 // 健康检查
 app.get('/api/health', (_req, res) => {

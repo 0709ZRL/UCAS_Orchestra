@@ -21,7 +21,7 @@ async function loadAttendance() {
   // 工具栏
   html += '<div class="toolbar">';
   html += '<input id="sf-attendance-personalId" placeholder="用户ID" onkeydown="if(event.key===\'Enter\')loadAttendance()">';
-  html += '<input id="sf-attendance-eventId" placeholder="活动ID" onkeydown="if(event.key===\'Enter\')loadAttendance()">';
+  html += '<input id="sf-attendance-eventId" placeholder="活动ID/文章ID" onkeydown="if(event.key===\'Enter\')loadAttendance()">';
   html += '<button onclick="loadAttendance()">🔍 搜索</button>';
   html += '<button class="btn-green" onclick="showAttendanceForm()">＋ 新增签到</button>';
   html += '</div>';

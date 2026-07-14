@@ -3,6 +3,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.innerWidth <= 900) document.querySelector('.sidebar')?.classList.remove('open');
   });
   checkAuth().then(ok => {
-    if (ok) loadPage('events');
+    if (ok) loadPage('articles');
   });
 });

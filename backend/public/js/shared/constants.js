@@ -14,14 +14,8 @@ const fields = {
     { key:'instrument', label:'乐器（多个用分号分隔）' },
     { key:'isMaster', label:'声部首席', type:'select', options:[{v:0,t:'否'},{v:1,t:'是'}], default:0 }
   ],
-  events: [
-    { key:'eventId', label:'活动ID', readonly:true },
-    { key:'startTime', label:'起始时间', type:'datetime-local' },
-    { key:'endTime', label:'结束时间', type:'datetime-local' },
-    { key:'title', label:'标题' },
-    { key:'appendix', label:'备注', type:'textarea' }
-  ],
   scores: [
+    { key:'scoreId', label:'乐谱ID', readonly:true },
     { key:'title', label:'乐谱名', required:true },
     { key:'isTotal', label:'是否为总谱', type:'select', options:[{v:0,t:'分谱'},{v:1,t:'总谱'}], default:0 },
     { key:'section', label:'所属声部', type:'select', options:[
@@ -35,7 +29,10 @@ const fields = {
   articles: [
     { key:'title', label:'标题', required:true },
     { key:'type', label:'分类', type:'select', options:[{v:0,t:'排练通知'},{v:1,t:'演出通知'},{v:2,t:'乐团新闻'}], default:0 },
-    { key:'content', label:'内容', type:'textarea' }
+    { key:'startTime', label:'活动开始时间', type:'datetime-local' },
+    { key:'endTime', label:'活动结束时间', type:'datetime-local' },
+    { key:'content', label:'内容', type:'textarea' },
+    { key:'images', label:'图片（可多选）', type:'file', accept:'image/*', multiple:true }
   ],
   logistics: [
     { key:'itemId', label:'物品ID', readonly:true },
@@ -79,7 +76,6 @@ function getSearchFields(page) {
       {key:'isManager',label:'管理人员',type:'select',options:[{v:0,t:'否'},{v:1,t:'是'}]},
       {key:'isMaster',label:'首席',type:'select',options:[{v:0,t:'否'},{v:1,t:'是'}]}
     ],
-    events:[{key:'title',label:'标题'}],
     scores:[{key:'title',label:'乐谱名'},{key:'section',label:'声部'}],
     articles:[{key:'title',label:'标题'},{key:'type',label:'分类',type:'select',options:[{v:0,t:'排练通知'},{v:1,t:'演出通知'},{v:2,t:'乐团新闻'}]}],
     logistics:[{key:'name',label:'物品名'},{key:'campus',label:'校区'}]
@@ -91,7 +87,6 @@ function getSearchFields(page) {
 function getColumnConfig(page) {
   const map = {
     persons:[{key:'personalId',label:'用户ID'},{key:'name',label:'姓名'},{key:'gender',label:'性别'},{key:'section',label:'声部'},{key:'campus',label:'校区'},{key:'job',label:'职位'},{key:'isManager',label:'管理人员'},{key:'managerJob',label:'管理职务',render:(row,lu)=>row.isManager==1?(lu&&lu.managerJob?((lu.managerJob.find(o=>String(o.v)===String(row.managerJob))||{}).t||row.managerJob):row.managerJob):'无'},{key:'isMaster',label:'首席'}],
-    events:[{key:'eventId',label:'活动ID'},{key:'startTime',label:'起始时间',render:(r)=>r.startTime?r.startTime.replace('T',' ').replace(/\.\d+Z$/,''):''},{key:'endTime',label:'结束时间',render:(r)=>r.endTime?r.endTime.replace('T',' ').replace(/\.\d+Z$/,''):''},{key:'title',label:'标题'}],
     scores:[{key:'scoreId',label:'ID'},{key:'title',label:'乐谱名'},{key:'isTotal',label:'类型'},{key:'section',label:'声部'},{key:'filehash',label:'PDF',render:(r)=>r.filehash?`<a href="/api/scores/${r.scoreId}/file" target="_blank" class="btn" style="padding:2px 10px;font-size:12px;background:#1890ff">📄 预览</a>`:'<span style="color:#999">无文件</span>'}],
     logistics:[{key:'itemId',label:'物品ID'},{key:'name',label:'物品名'},{key:'campus',label:'校区'},{key:'address',label:'位置'},{key:'isPublic',label:'状态'},{key:'belongsToId',label:'所属人'},{key:'imagehash',label:'图片',render:(r)=>r.imagehash?`<img src="/api/logistics/${r.itemId}/image" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openLightbox('/api/logistics/${r.itemId}/image')" title="点击查看大图">`:'<span style="color:#999">无</span>'}]
   };
@@ -99,11 +94,11 @@ function getColumnConfig(page) {
 }
 
 function getIdKey(page) {
-  const map = { persons:'personalId', events:'eventId', scores:'scoreId', logistics:'itemId', articles:'articleId', attendance:'attendanceId' };
+  const map = { persons:'personalId', scores:'scoreId', logistics:'itemId', articles:'articleId', attendance:'attendanceId' };
   return map[page] || 'id';
 }
 
 function getPageLabel(page) {
-  const map = { persons:'成员', events:'活动', scores:'乐谱', logistics:'物品' };
+  const map = { persons:'成员', scores:'乐谱', logistics:'物品' };
   return map[page] || page;
 }
