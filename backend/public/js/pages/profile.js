@@ -8,11 +8,10 @@ async function showProfile() {
   const ures = await api('/persons/' + pid);
   if (!ures.success) { document.getElementById('page-profile').innerHTML = '<p>加载失败</p>'; return; }
   const u = ures.data;
-  const ts = Date.now();
 
   let html = `<div class="profile-wrap">
     <div class="profile-avatar">
-      <img src="/api/auth/avatar?${ts}" id="profileAvatar">
+      <img src="/api/auth/avatar" id="profileAvatar">
       <div class="edit-badge" onclick="document.getElementById('avatarInput').click()">📷 更换头像</div>
       <input id="avatarInput" type="file" accept="image/*" style="display:none" onchange="startCrop(this)">
     </div>`;

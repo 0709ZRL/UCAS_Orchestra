@@ -21,10 +21,9 @@ let _regCropBlob = null;
 
 // 登录后处理
 function afterLogin(name) {
-  const ts = Date.now();
   const thumb = document.getElementById('avatarThumb');
   if (thumb) {
-    thumb.src = '/api/auth/avatar?' + ts;
+    thumb.src = '/api/auth/avatar';
     thumb.onerror = function() {
       this.src = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#e0e0e0"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="#999">👤</text></svg>');
     };
