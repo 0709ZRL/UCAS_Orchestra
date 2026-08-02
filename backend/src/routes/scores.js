@@ -5,8 +5,24 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const router = express.Router();
+const { loadUser, requirePrivileged, isManager } = require('../middleware/auth');
+
+router.use(loadUser);
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads/scores');
+
+// 成员声部数字 → 乐谱声部名称（scores.section 为字符串）
+const SCORE_SECTION_BY_INT = {
+  0:'民族管乐声部',1:'弹拨一组',2:'弹拨二组',3:'胡琴声部',4:'提琴声部',5:'西洋木管声部',
+  6:'西洋铜管声部',7:'低音声部',8:'钢琴声部',9:'打击声部',10:'无声部'
+};
+
+// 声部长能否操作该乐谱：仅本声部 分谱（isTotal=0）
+function sectionLeaderCanOperate(user, record) {
+  if (isManager(user)) return true;
+  if (user.job != 1) return false;
+  return record.isTotal == 0 && String(record.section) === (SCORE_SECTION_BY_INT[user.section] || '');
+}
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // multer 配置：仅接受 PDF
@@ -91,7 +107,8 @@ router.get('/:scoreId/file', async (req, res, next) => {
 });
 
 // POST /api/scores/upload — 上传 PDF + 自动计算哈希
-router.post('/upload', (req, res, next) => {
+// 权限：管理员任意；声部长仅本声部 分谱；普通成员禁止
+router.post('/upload', requirePrivileged, (req, res, next) => {
   upload.single('file')(req, res, async (err) => {
     if (err) {
       if (err.message === '仅允许上传 PDF 文件') return res.status(400).json({ success: false, message: err.message });
@@ -99,9 +116,19 @@ router.post('/upload', (req, res, next) => {
       return next(err);
     }
     try {
+      const user = req.user;
       if (!req.file) return res.status(400).json({ success: false, message: '请上传 PDF 文件' });
       const { title, isTotal, section } = req.body;
       if (!title) return res.status(400).json({ success: false, message: 'title 为必填项' });
+      // 声部长：仅本声部 分谱
+      if (!isManager(user)) {
+        if (parseInt(isTotal || 0) === 1) {
+          return res.status(403).json({ success: false, message: '声部长不能上传总谱' });
+        }
+        if (String(section || '') !== (SCORE_SECTION_BY_INT[user.section] || '')) {
+          return res.status(403).json({ success: false, message: '声部长只能上传本声部的分谱' });
+        }
+      }
 
       const filehash = await computeHash(req.file.path);
 
@@ -131,7 +158,8 @@ router.post('/upload', (req, res, next) => {
 });
 
 // PUT /api/scores/:scoreId/file — 替换乐谱 PDF 文件
-router.put('/:scoreId/file', (req, res, next) => {
+// 权限：管理员任意；声部长仅本声部 分谱；普通成员禁止
+router.put('/:scoreId/file', requirePrivileged, (req, res, next) => {
   upload.single('file')(req, res, async (err) => {
     if (err) {
       if (err.message === '仅允许上传 PDF 文件') return res.status(400).json({ success: false, message: err.message });
@@ -139,9 +167,13 @@ router.put('/:scoreId/file', (req, res, next) => {
       return next(err);
     }
     try {
+      const user = req.user;
       const [rows] = await pool.query('SELECT * FROM scores WHERE scoreId = ?', [req.params.scoreId]);
       if (!rows.length) return res.status(404).json({ success: false, message: '未找到该乐谱' });
       if (!req.file) return res.status(400).json({ success: false, message: '请上传 PDF 文件' });
+      if (!sectionLeaderCanOperate(user, rows[0])) {
+        return res.status(403).json({ success: false, message: '无权操作该乐谱（仅可操作本声部分谱）' });
+      }
 
       const filehash = await computeHash(req.file.path);
       const oldRecord = rows[0];
@@ -173,8 +205,15 @@ router.put('/:scoreId/file', (req, res, next) => {
 });
 
 // PUT /api/scores/:scoreId — 更新元信息（不更新文件）
-router.put('/:scoreId', async (req, res, next) => {
+// 权限：管理员任意；声部长仅本声部 分谱；普通成员禁止
+router.put('/:scoreId', requirePrivileged, async (req, res, next) => {
   try {
+    const user = req.user;
+    const [rows] = await pool.query('SELECT * FROM scores WHERE scoreId = ?', [req.params.scoreId]);
+    if (!rows.length) return res.status(404).json({ success: false, message: '未找到该乐谱' });
+    if (!sectionLeaderCanOperate(user, rows[0])) {
+      return res.status(403).json({ success: false, message: '无权操作该乐谱（仅可操作本声部分谱）' });
+    }
     const updFields = ['title', 'isTotal', 'section'];
     const sets = [];
     const values = [];
@@ -199,11 +238,16 @@ router.put('/:scoreId', async (req, res, next) => {
 });
 
 // DELETE /api/scores/:scoreId — 同时删除文件
-router.delete('/:scoreId', async (req, res, next) => {
+// 权限：管理员任意；声部长仅本声部 分谱；普通成员禁止
+router.delete('/:scoreId', requirePrivileged, async (req, res, next) => {
   try {
+    const user = req.user;
     const [rows] = await pool.query('SELECT * FROM scores WHERE scoreId = ?', [req.params.scoreId]);
     if (!rows.length) return res.status(404).json({ success: false, message: '未找到该乐谱' });
     const record = rows[0];
+    if (!sectionLeaderCanOperate(user, record)) {
+      return res.status(403).json({ success: false, message: '无权操作该乐谱（仅可操作本声部分谱）' });
+    }
     // 删除文件
     const filePath = path.join(UPLOAD_DIR, record.filehash + '.pdf');
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);

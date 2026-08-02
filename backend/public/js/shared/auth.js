@@ -19,11 +19,56 @@ const REG_FIELDS = [
 let _cropper = null;
 let _regCropBlob = null;
 
+// 角色持久化：登录后存 localStorage，供页面同步隐藏导航（防被屏蔽功能闪现）
+function saveMe(me) {
+  window._me = me || null;
+  try {
+    if (me) localStorage.setItem('_me', JSON.stringify(me));
+    else localStorage.removeItem('_me');
+  } catch (e) { /* 忽略 */ }
+}
+
+// 应用角色界面：按当前用户角色隐藏无权限的导航项；无权限的页面直接跳走（不显示界面/提示）
+function applyRoleUI() {
+  const me = window._me || {};
+  const isManager = me.isManager == 1;
+  // 维护 <html> 的 is-manager 类：与 shared.css 的 html:not(.is-manager) 规则协同，保证导航隐藏/显示一致
+  const root = document.documentElement;
+  if (isManager) root.classList.add('is-manager');
+  else root.classList.remove('is-manager');
+  // 文章管理/活动管理仅管理员可见（/events 重定向到 /articles）
+  document.querySelectorAll('a[href="/articles"], a[href="/events"]').forEach(a => {
+    a.style.display = isManager ? '' : 'none';
+  });
+  // 非管理员访问文章/活动管理页：直接跳回首页（界面与标题都不显示）
+  if (!isManager && /^\/(articles|events)(\/|$)/.test(location.pathname)) {
+    location.replace('/home');
+  }
+}
+
+// 同步应用已存角色：本脚本在页面底部同步执行，配合 <head> 脚本与 CSS 规则，立即隐藏无权限导航，避免闪现
+(function applyStoredRoleUI() {
+  try {
+    const saved = localStorage.getItem('_me');
+    if (!saved) return;
+    const me = JSON.parse(saved);
+    window._me = me;
+    if (me.isManager == 1) {
+      document.documentElement.classList.add('is-manager');
+    } else {
+      document.querySelectorAll('a[href="/articles"], a[href="/events"]').forEach(a => {
+        a.style.display = 'none';
+      });
+    }
+  } catch (e) { /* 忽略 */ }
+})();
+
 // 登录后处理
 function afterLogin(name) {
   const thumb = document.getElementById('avatarThumb');
   if (thumb) {
-    thumb.src = '/api/auth/avatar';
+    // 带时间戳防缓存：头像接口有 24h 缓存，避免换用户登录后仍显示上一个用户头像
+    thumb.src = '/api/auth/avatar?t=' + Date.now();
     thumb.onerror = function() {
       this.src = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#e0e0e0"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="#999">👤</text></svg>');
     };
@@ -47,13 +92,28 @@ function afterLogin(name) {
 async function checkAuth() {
   const res = await api('/auth/me');
   if (res.success) {
+    saveMe(res.data || null);
     afterLogin(res.data.name);
+    applyRoleUI();
     return true;
   } else {
+    saveMe(null);
     // 未登录，重定向到登录页
     window.location.href = '/login';
     return false;
   }
+}
+
+// 刷新当前用户角色信息（供页面加载后调用）
+async function refreshMe() {
+  const res = await api('/auth/me');
+  if (res.success) {
+    saveMe(res.data || null);
+    applyRoleUI();
+    return res.data;
+  }
+  saveMe(null);
+  return null;
 }
 
 // 登录功能
@@ -118,6 +178,7 @@ async function doRegister() {
 async function logout() {
   if (!confirm('确定要退出登录吗？')) return;
   await api('/auth/logout', { method: 'POST' });
+  saveMe(null);
   window.location.href = '/login';
 }
 

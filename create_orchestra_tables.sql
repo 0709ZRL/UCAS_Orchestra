@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS persons (
   instrument VARCHAR(256) COMMENT '多个乐器用分号分隔',
   isMaster TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0=否 1=是（声部首席）',
   avatarhash VARCHAR(255) COMMENT '头像图片SHA256哈希',
+  isOrchestraMember TINYINT(1) NOT NULL DEFAULT 1 COMMENT '0=非乐团成员 1=乐团成员（琴房预约用）',
   PRIMARY KEY (personalId),
   UNIQUE KEY UNQ_Persons_Account (account)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS events (
   endTime DATETIME,
   title VARCHAR(200) DEFAULT '乐团活动',
   appendix TEXT,
+  location VARCHAR(255) COMMENT '打卡地点坐标（格式：纬度,经度）',
   PRIMARY KEY (eventId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -80,3 +82,35 @@ CREATE TABLE IF NOT EXISTS logistics (
   KEY FK_Logistics_Owner (belongsToId),
   CONSTRAINT FK_Logistics_Owner FOREIGN KEY (belongsToId) REFERENCES persons(personalId) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 琴房信息（琴房预约系统）
+CREATE TABLE IF NOT EXISTS rooms (
+  roomId VARCHAR(64) NOT NULL,
+  campus VARCHAR(64) NOT NULL COMMENT '校区：玉泉路琴房/雁栖湖琴房/奥运村琴房',
+  name VARCHAR(100) NOT NULL COMMENT '琴房名称',
+  description VARCHAR(255) COMMENT '琴房描述',
+  PRIMARY KEY (roomId)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 琴房预约记录
+CREATE TABLE IF NOT EXISTS reservations (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  roomId VARCHAR(64) NOT NULL,
+  bookerId VARCHAR(64) NOT NULL COMMENT '主预约人 personalId',
+  date DATE NOT NULL COMMENT '预约日期',
+  startTime TIME NOT NULL COMMENT '开始时间',
+  endTime TIME NOT NULL COMMENT '结束时间',
+  participants JSON COMMENT '参与人 personalId 数组（含主预约人）',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_room_date (roomId, date),
+  KEY idx_booker (bookerId),
+  CONSTRAINT FK_Reservations_Room FOREIGN KEY (roomId) REFERENCES rooms(roomId) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT FK_Reservations_Booker FOREIGN KEY (bookerId) REFERENCES persons(personalId) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 琴房初始数据（每个校区对应一间琴房，无 A/B/C 细分）
+INSERT IGNORE INTO rooms (roomId, campus, name, description) VALUES
+('玉泉路琴房', '玉泉路琴房', '玉泉路琴房', NULL),
+('雁栖湖琴房', '雁栖湖琴房', '雁栖湖琴房', NULL),
+('奥运村琴房', '奥运村琴房', '奥运村琴房', NULL);

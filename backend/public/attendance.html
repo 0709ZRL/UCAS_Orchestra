@@ -5,6 +5,92 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>出勤管理 - 乐团管理平台</title>
 <link rel="stylesheet" href="/css/shared.css">
+<style>
+/* ===== 出勤数据大屏（深色主题，与成员大屏统一） ===== */
+.btn-dashboard{background:linear-gradient(135deg,#1890ff,#7c5cff);box-shadow:0 2px 6px rgba(24,144,255,.35)}
+.btn-dashboard:hover{box-shadow:0 4px 14px rgba(24,144,255,.5)}
+.adash-wrap{min-height:calc(100vh - 90px)}
+.adash-header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 20px;background:linear-gradient(135deg,#0f1e3d 0%,#132744 50%,#0b1a33 100%);border-radius:14px 14px 0 0;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.adash-title{font-size:19px;font-weight:700;color:#fff;letter-spacing:1px}
+.adash-sub{font-size:11px;color:rgba(255,255,255,.45);letter-spacing:2px;text-transform:uppercase}
+.adash-back{margin-left:auto;padding:8px 18px;border:1px solid rgba(255,255,255,.25);border-radius:10px;background:rgba(255,255,255,.06);color:#dfe7f5;font-size:13px;cursor:pointer;transition:all .2s}
+.adash-back:hover{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.4);transform:translateY(-1px)}
+/* 筛选栏 */
+.adash-filter{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 20px;background:linear-gradient(180deg,#132644,#0f2038)}
+.adash-filter label{font-size:13px;color:rgba(255,255,255,.7)}
+.adash-filter select,.adash-filter input[type="date"]{padding:8px 12px;border:1px solid rgba(255,255,255,.18);border-radius:8px;background:rgba(255,255,255,.07);color:#eaf1ff;font-size:13px;outline:none;transition:all .2s}
+.adash-filter select:focus,.adash-filter input[type="date"]:focus{border-color:#1890ff;box-shadow:0 0 0 2px rgba(24,144,255,.25)}
+.adash-filter select option{color:#222}
+.adash-query{padding:8px 22px;border:none;border-radius:8px;background:linear-gradient(135deg,#1890ff,#096dd9);color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(24,144,255,.4);transition:all .2s}
+.adash-query:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(24,144,255,.55)}
+.adash-query:active{transform:scale(.96)}
+/* Tab 切换 */
+.adash-tabs{display:flex;gap:6px;margin-left:auto;background:rgba(255,255,255,.06);padding:4px;border-radius:10px}
+.adash-tab{padding:7px 20px;border:none;border-radius:8px;background:transparent;color:rgba(255,255,255,.6);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s}
+.adash-tab:hover{color:#fff}
+.adash-tab.active{background:linear-gradient(135deg,#1890ff,#7c5cff);color:#fff;box-shadow:0 2px 8px rgba(24,144,255,.4)}
+/* 内容区 */
+.adash-body{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:14px;background:#0a1830;border-radius:0 0 14px 14px}
+.adash-card{background:linear-gradient(180deg,#132644,#0e1f3a);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px;box-shadow:0 4px 18px rgba(0,0,0,.35);min-width:0}
+.adash-card-wide{grid-column:1 / -1}
+.adash-card-title{font-size:15px;font-weight:600;color:#e8f0ff;margin-bottom:14px;letter-spacing:1px}
+.adash-card-title::before{content:'';display:inline-block;width:4px;height:14px;background:linear-gradient(180deg,#1890ff,#00d4ff);border-radius:2px;margin-right:8px;vertical-align:-2px}
+/* 数字卡片 */
+.adash-stat{text-align:center;padding:10px 6px}
+.adash-stat-num{font-size:40px;font-weight:800;color:#fff;line-height:1.2;text-shadow:0 0 24px rgba(24,144,255,.5)}
+.adash-stat-num small{font-size:15px;color:#00d4ff;margin-left:4px}
+.adash-stat-label{font-size:13px;color:rgba(255,255,255,.6);margin-top:6px;letter-spacing:1px}
+.adash-stat-hint{font-size:11px;color:rgba(255,255,255,.35);margin-top:4px}
+/* 环形图/图例/条形图（复用 dash-* 类名） */
+.dash-donut-wrap{display:flex;align-items:center;gap:22px;flex-wrap:wrap;justify-content:center}
+.dash-donut-center-main{font-size:26px;font-weight:700;fill:#fff}
+.dash-donut-center-sub{font-size:11px;fill:rgba(255,255,255,.5)}
+.dash-legend-wrap{display:flex;flex-direction:column;gap:10px;min-width:120px}
+.dash-legend{font-size:13px;color:#cfd9ec;display:flex;align-items:center;gap:8px}
+.dash-legend b{color:#fff}
+.dash-dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+.dash-bar-val{font-size:11px;fill:rgba(255,255,255,.85);font-weight:600}
+.dash-bar-label{font-size:10px;fill:rgba(255,255,255,.55)}
+.dash-hbars{display:flex;flex-direction:column;gap:10px}
+.dash-hbar-row{display:flex;align-items:center;gap:10px}
+.dash-hbar-label{flex:0 0 88px;font-size:13px;color:#cfd9ec;text-align:right}
+.dash-hbar-track{flex:1;background:rgba(255,255,255,.06);border-radius:6px;height:24px;overflow:hidden}
+.dash-hbar-fill{height:100%;border-radius:6px;min-width:4px;transition:width .8s cubic-bezier(.4,0,.2,1);display:flex;align-items:center;justify-content:flex-end;padding-right:8px}
+.dash-hbar-num{font-size:12px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.dash-hbar-pct{flex:0 0 42px;font-size:12px;color:rgba(255,255,255,.6);text-align:right}
+.dash-empty{text-align:center;padding:40px;color:rgba(255,255,255,.4);font-size:13px}
+/* 占比表格 */
+.adash-table-wrap{width:100%;overflow-x:auto;border:1px solid rgba(255,255,255,.14);border-radius:10px}
+.adash-table{width:100%;border-collapse:collapse;background:#0e1d3a;min-width:0}
+.adash-table th{background:linear-gradient(180deg,#21427a,#16304f);color:#ffffff;font-size:13px;font-weight:700;padding:10px 12px;text-align:left;border-bottom:2px solid #3d7bdd;white-space:nowrap}
+.adash-table td{padding:10px 12px;font-size:14px;color:#ffffff;border-bottom:1px solid rgba(255,255,255,.08);white-space:nowrap}
+.adash-table tr:nth-child(even) td{background:rgba(255,255,255,.055)}
+.adash-table tr:hover td{background:rgba(61,123,221,.22)}
+.adash-table td:last-child{color:#6fd6ff;font-weight:700}
+.adash-table .rank-top,.adash-table .rank-top2,.adash-table .rank-top3,.adash-table .rank-n{display:inline-block;min-width:26px;text-align:center;padding:3px 8px;border-radius:7px;font-size:13px;font-weight:800;letter-spacing:0}
+.adash-table .rank-top{background:#f7c948;color:#221a00;box-shadow:0 1px 5px rgba(247,201,72,.45)}
+.adash-table .rank-top2{background:#d9e3f4;color:#1b2c4a;box-shadow:0 1px 5px rgba(255,255,255,.18)}
+.adash-table .rank-top3{background:#e8963d;color:#ffffff;box-shadow:0 1px 5px rgba(232,150,61,.45)}
+.adash-table .rank-n{background:#2e4266;color:#d4e3ff}
+/* 声部明细 状态徽章（已/未 报名、已/未 出勤） */
+.adash-table .sec-ok,.adash-table .sec-no{display:inline-block;padding:3px 10px;border-radius:7px;font-size:12.5px;font-weight:700}
+.adash-table .sec-ok{color:#d3f5b6;background:rgba(82,196,26,.18);box-shadow:inset 0 0 0 1px rgba(82,196,26,.35)}
+.adash-table .sec-no{color:#ffb4b0;background:rgba(255,77,79,.16);box-shadow:inset 0 0 0 1px rgba(255,77,79,.35)}
+/* 导出按钮 */
+.adash-export{margin-top:12px;text-align:right}
+.adash-export button{padding:8px 18px;border:none;border-radius:8px;background:linear-gradient(135deg,#52c41a,#389e0d);color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(82,196,26,.35);transition:all .2s}
+.adash-export button:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(82,196,26,.5)}
+.adash-export button:disabled{opacity:.5;cursor:not-allowed}
+/* 加载/空态 */
+.adash-loading{text-align:center;padding:60px;color:rgba(255,255,255,.5);font-size:14px}
+.adash-loading .spin{display:inline-block;width:26px;height:26px;border:3px solid rgba(255,255,255,.15);border-top-color:#1890ff;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (max-width:900px){
+  .adash-body{grid-template-columns:1fr}
+  .adash-tabs{width:100%;margin-left:0}
+  .adash-tab{flex:1}
+}
+</style>
 </head>
 <body>
 <div id="app">
@@ -33,6 +119,8 @@
     <a href="/persons">👤 成员管理</a>
     <a href="/events">📅 活动管理</a>
     <a href="/attendance" class="active">📋 出勤管理</a>
+    <a href="/checkin">📍 活动打卡</a>
+    <a href="/rooms">🎹 琴房预约</a>
     <a href="/scores">🎼 乐谱管理</a>
     <a href="/logistics">📦 后勤管理</a>
     <a href="/articles">📰 文章管理</a>
@@ -47,9 +135,10 @@
 <!-- 模态框 -->
 <div id="modal" class="modal-overlay"><div class="modal" id="modalBody"></div></div>
 <div id="toast"></div>
-<script src="/js/shared/constants.js"></script>
-<script src="/js/shared/utils.js"></script>
-<script src="/js/shared/auth.js"></script>
-<script src="/js/pages/attendance.js"></script>
+<script src="/js/shared/constants.js?v=2"></script>
+<script src="/js/shared/utils.js?v=2"></script>
+<script src="/js/shared/auth.js?v=2"></script>
+<script src="/js/shared/charts.js?v=1"></script>
+<script src="/js/pages/attendance.js?v=8"></script>
 </body>
 </html>

@@ -129,10 +129,8 @@ function checkEventModal() {
       + '<div class="rehearsal-time">🕐 ' + (ev.startTime || '').replace('T',' ').substring(0,16) + ' ~ ' + (ev.endTime || '').replace('T',' ').substring(0,16) + '</div>'
       + '<div class="rehearsal-desc">' + escHtml((ev.appendix || ev.title || '').substring(0, 200)) + '</div>'
       + '<div class="rehearsal-actions">'
-      + '<button class="rehearsal-detail-btn" onclick="closeRehearsal()">关闭</button>'
-      + '</div>'
-      + '<div class="rehearsal-register-row">'
-      + '<button class="rehearsal-register-btn" id="rehearsalRegBtn" onclick="doEventRegister(' + ev.articleId + ')">报 名</button>'
+      + '<button class="rehearsal-detail-btn" onclick="closeRehearsal()">✕ 关闭</button>'
+      + '<button class="rehearsal-register-btn" id="rehearsalRegBtn" onclick="doEventRegister(' + ev.articleId + ')">🎫 立即报名</button>'
       + '</div></div>';
     document.body.appendChild(overlay);
     requestAnimationFrame(() => {
@@ -156,7 +154,7 @@ async function doEventRegister(eventId) {
   if (window._registering) return;
   window._registering = true;
   const btn = document.getElementById('rehearsalRegBtn');
-  if (btn) { btn.textContent = '✓'; btn.classList.add('registered'); }
+  if (btn) { btn.textContent = '⏳ 提交中...'; btn.classList.add('loading'); }
   const res = await fetch('/api/register/event/' + eventId, { method: 'POST', credentials: 'same-origin' }).then(r => r.json());
   if (res.success) {
     const overlay = document.getElementById('rehearsal-overlay');
@@ -165,7 +163,7 @@ async function doEventRegister(eventId) {
       setTimeout(() => { overlay.remove(); showToast('🎉 报名成功！'); }, 600);
     }
   } else {
-    if (btn) { btn.textContent = '报 名'; btn.classList.remove('registered'); }
+    if (btn) { btn.textContent = '🎫 立即报名'; btn.classList.remove('loading'); }
     showToast(res.message || '报名失败', 'error');
   }
   window._registering = false;

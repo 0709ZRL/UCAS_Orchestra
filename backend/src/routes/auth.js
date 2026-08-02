@@ -113,12 +113,17 @@ router.post('/login', async (req, res, next) => {
 });
 
 // GET /api/auth/me — 获取当前登录用户
-router.get('/me', (req, res, next) => {
+router.get('/me', async (req, res, next) => {
   try {
     const token = req.cookies?.token;
     if (!token) return res.json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
-    res.json({ success: true, data: { personalId: decoded.personalId, account: decoded.account, name: decoded.name } });
+    // 附带管理员/声部/职位标识（琴房预约、声部明细权限用）
+    const [rows] = await pool.query('SELECT isManager, section, job FROM persons WHERE personalId = ?', [decoded.personalId]);
+    const isManager = rows.length ? rows[0].isManager : 0;
+    const section = rows.length ? rows[0].section : 0;
+    const job = rows.length ? rows[0].job : 0;
+    res.json({ success: true, data: { personalId: decoded.personalId, account: decoded.account, name: decoded.name, isManager, section, job } });
   } catch (err) {
     res.clearCookie('token'); res.clearCookie('userName');
     return res.json({ success: false, message: '登录已过期' });

@@ -79,6 +79,7 @@ CREATE TABLE `persons` (
 | `endTime` | `datetime` | YES | — | `NULL` | 结束时间（年月日时分） |
 | `title` | `varchar(200)` | YES | — | `'乐团活动'` | 标题 |
 | `appendix` | `text` | YES | — | `NULL` | 备注 |
+| `location` | `varchar(255)` | YES | — | `NULL` | 打卡地点坐标（格式：纬度,经度） |
 
 **索引：**
 - 主键：`eventId`
@@ -94,6 +95,7 @@ CREATE TABLE `events` (
   `endTime` datetime DEFAULT NULL,
   `title` varchar(200) DEFAULT '乐团活动',
   `appendix` text,
+  `location` varchar(255) DEFAULT NULL COMMENT '打卡地点坐标（格式：纬度,经度）',
   PRIMARY KEY (`eventId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
@@ -252,6 +254,7 @@ erDiagram
         datetime endTime
         varchar(200) title "默认:乐团活动"
         text appendix
+        varchar(255) location "打卡坐标 纬度,经度"
     }
 
     attendance {

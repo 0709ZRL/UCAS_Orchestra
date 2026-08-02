@@ -174,13 +174,32 @@ tr:hover{background:#f8f9ff}
 .rehearsal-title{font-size:20px;color:#1a1a2e;margin-bottom:8px;line-height:1.4}
 .rehearsal-time{font-size:13px;color:#999;margin-bottom:16px}
 .rehearsal-desc{font-size:14px;color:#555;line-height:1.7;margin-bottom:24px;text-align:left;background:#f8f9ff;padding:14px 18px;border-radius:10px;max-height:120px;overflow-y:auto}
-.rehearsal-actions{display:flex;gap:12px;justify-content:center}
-.rehearsal-detail-btn{padding:10px 24px;border:1px solid #d9d9d9;border-radius:10px;background:#fff;color:#555;font-size:14px;cursor:pointer;transition:all .2s;flex:1}
-.rehearsal-detail-btn:hover{border-color:#667eea;color:#667eea}
-.rehearsal-register-row{text-align:center;margin-top:20px}
-.rehearsal-register-btn{width:80px;height:80px;border-radius:50%;border:none;background:linear-gradient(135deg,#e94560,#c73650);color:#fff;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(233,69,96,.4);animation:registerPulse 2s ease-in-out infinite;transition:all .3s;letter-spacing:2px}
-.rehearsal-register-btn:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(233,69,96,.55)}
-.rehearsal-register-btn.registered{animation:none;background:linear-gradient(135deg,#2d8a4e,#1e6b38);box-shadow:0 4px 20px rgba(45,138,78,.4);transform:scale(1.15);width:80px;height:80px;font-size:32px}
+/* 报名弹窗操作区：关闭（幽灵）+ 报名（渐变主按钮）并排 */
+.rehearsal-actions{display:flex;gap:12px;margin-top:22px}
+.rehearsal-detail-btn{
+  flex:1;padding:12px 14px;border:1px solid #e5e7eb;border-radius:12px;
+  background:#fff;color:#6b7280;font-size:15px;font-weight:600;letter-spacing:2px;
+  cursor:pointer;transition:all .25s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
+}
+.rehearsal-detail-btn:hover{border-color:#d1d5db;color:#374151;background:#f9fafb;transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.08)}
+.rehearsal-detail-btn:active{transform:scale(.97)}
+.rehearsal-register-btn{
+  flex:1.4;padding:12px 14px;border:none;border-radius:12px;
+  background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;
+  font-size:15px;font-weight:700;letter-spacing:2px;cursor:pointer;
+  transition:all .25s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 4px 14px rgba(102,126,234,.35);position:relative;overflow:hidden;
+}
+/* 光泽扫过动效 */
+.rehearsal-register-btn::after{content:'';position:absolute;top:0;left:-70%;width:35%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.4),transparent);transform:skewX(-20deg);animation:btnShine 2.8s ease-in-out infinite}
+.rehearsal-register-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(102,126,234,.5)}
+.rehearsal-register-btn:active{transform:scale(.97)}
+.rehearsal-register-btn.loading{opacity:.8;letter-spacing:1px;cursor:progress}
+.rehearsal-register-btn.loading::after{display:none}
+.rehearsal-register-btn.registered{background:linear-gradient(135deg,#52c41a,#389e0d);box-shadow:0 4px 14px rgba(82,196,26,.35);letter-spacing:1px}
+.rehearsal-register-btn.registered::after{display:none}
+@keyframes btnShine{0%{left:-70%}55%{left:130%}100%{left:130%}}
 .rehearsal-detail-reg-btn{background:linear-gradient(135deg,#e94560,#c73650);color:#fff !important;box-shadow:0 2px 8px rgba(233,69,96,.3)}
 .rehearsal-detail-reg-btn:hover{box-shadow:0 4px 16px rgba(233,69,96,.4);transform:translateY(-1px)}
 @keyframes registerPulse{0%,100%{box-shadow:0 4px 20px rgba(233,69,96,.4)}50%{box-shadow:0 4px 36px rgba(233,69,96,.7)}}
@@ -233,3 +252,25 @@ tr:hover{background:#f8f9ff}
 @media(min-width:901px){
   .header .menu-btn{display:none}
 }
+
+/* ===== 地点搜索组件 ===== */
+.loc-search-wrap{background:#f8f9ff;border-radius:10px;padding:14px;border:1px solid #e8e8e8}
+.loc-search-row{display:flex;gap:0}
+.loc-search-row input:focus{border-color:#667eea;box-shadow:0 0 0 2px rgba(102,126,234,.15)}
+.loc-search-btn{padding:10px 18px;border:none;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:14px;cursor:pointer;border-radius:0 8px 8px 0;white-space:nowrap;font-weight:500;transition:all .2s}
+.loc-search-btn:hover{background:linear-gradient(135deg,#764ba2,#667eea)}
+.loc-results{background:#fff;border:1px solid #e0e0e0;border-radius:8px;margin-top:6px;max-height:240px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.loc-result-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid #f5f5f5;transition:background .15s}
+.loc-result-item:last-child{border-bottom:none}
+.loc-result-item:hover{background:#eef0ff}
+.loc-result-name{font-size:14px;color:#333;line-height:1.4}
+.loc-result-coord{font-size:11px;color:#999;margin-top:2px}
+.loc-badge{display:inline-flex;align-items:center;gap:6px;background:#eef0ff;padding:6px 12px;border-radius:20px;font-size:13px;color:#444;max-width:100%}
+.loc-badge span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loc-remove{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:#e0e0e0;color:#666;font-size:12px;cursor:pointer;flex-shrink:0;transition:all .2s}
+.loc-remove:hover{background:#e94560;color:#fff}
+
+/* ===== 角色导航防闪现：非管理员（<html> 无 is-manager 类）默认隐藏文章/活动管理入口 =====
+   <head> 中的同步脚本会在首次绘制前按 localStorage 设置 is-manager 类，故无闪现 */
+html:not(.is-manager) a[href="/articles"],
+html:not(.is-manager) a[href="/events"]{display:none!important}

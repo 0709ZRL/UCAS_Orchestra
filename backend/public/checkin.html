@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>活动打卡 - 乐团管理平台</title>
+<link rel="stylesheet" href="/css/shared.css">
+<style>
+.checkin-wrap { max-width:700px; margin:0 auto; padding:8px 0; }
+.checkin-header { display:flex; align-items:center; gap:16px; margin-bottom:20px; }
+.checkin-header h2 { font-size:20px; flex:1; }
+
+/* 活动卡片选择区 */
+.event-select-area { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.08); padding:20px; margin-bottom:16px; }
+.event-select-area h3 { font-size:15px; color:#333; margin-bottom:12px; }
+.event-list { max-height:320px; overflow-y:auto; }
+.event-card { display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:8px; cursor:pointer; transition:all .2s; border:2px solid transparent; margin-bottom:8px; background:#f8f9ff; }
+.event-card:hover { border-color:#667eea; background:#f0f2ff; }
+.event-card.selected { border-color:#e94560; background:#fff5f7; }
+.event-card .ec-time { font-size:12px; color:#999; flex-shrink:0; min-width:100px; }
+.event-card .ec-title { flex:1; font-size:14px; font-weight:600; color:#333; }
+.event-card .ec-location { font-size:12px; color:#667eea; }
+.event-card .ec-status { font-size:11px; padding:2px 10px; border-radius:10px; font-weight:600; color:#fff; white-space:nowrap; }
+.ec-status.ongoing { background:#2d8a4e; }
+.ec-status.ended { background:#999; }
+
+/* 打卡区域 */
+.checkin-area { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.08); padding:32px 20px; text-align:center; }
+.checkin-area .selected-event-info { margin-bottom:20px; }
+.checkin-area .selected-event-info .se-title { font-size:18px; font-weight:700; color:#1a1a2e; }
+.checkin-area .selected-event-info .se-time { font-size:13px; color:#999; margin-top:4px; }
+.checkin-area .selected-event-info .se-location { font-size:13px; color:#667eea; margin-top:4px; }
+
+/* 打卡按钮 */
+.checkin-btn-wrap { position:relative; display:inline-block; margin:16px 0; }
+.checkin-btn { width:120px; height:120px; border-radius:50%; border:none; font-size:20px; font-weight:700; cursor:pointer;
+  background:linear-gradient(135deg,#667eea,#764ba2); color:#fff;
+  box-shadow:0 4px 24px rgba(102,126,234,.4); transition:all .3s; position:relative; }
+.checkin-btn:hover { transform:scale(1.06); box-shadow:0 6px 32px rgba(102,126,234,.55); }
+.checkin-btn:active { transform:scale(.95); }
+.checkin-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.checkin-btn.checking { animation:pulse 1.2s ease-in-out infinite; }
+.checkin-btn.success { background:linear-gradient(135deg,#2d8a4e,#1e6b38); box-shadow:0 4px 24px rgba(45,138,78,.4); }
+.checkin-btn.error { background:linear-gradient(135deg,#e94560,#c73650); box-shadow:0 4px 24px rgba(233,69,96,.4); }
+
+@keyframes pulse { 0%,100%{box-shadow:0 4px 24px rgba(102,126,234,.4)} 50%{box-shadow:0 4px 40px rgba(102,126,234,.7)} }
+
+.checkin-status { margin-top:12px; font-size:14px; color:#666; }
+.checkin-status.success { color:#2d8a4e; font-weight:600; }
+.checkin-status.error { color:#e94560; font-weight:600; }
+.checkin-status.loading { color:#667eea; }
+
+/* 距离提示 */
+.distance-info { font-size:13px; color:#888; margin-top:8px; padding:8px 16px; background:#f8f9ff; border-radius:8px; display:inline-block; }
+
+/* 无活动提示 */
+.no-events { text-align:center; padding:60px 20px; color:#ccc; font-size:16px; }
+.no-events span { font-size:48px; display:block; margin-bottom:16px; }
+
+/* 打卡历史 */
+.checkin-history { margin-top:24px; }
+.checkin-history h3 { font-size:15px; color:#333; margin-bottom:12px; }
+.history-list { background:#fff; border-radius:12px; box-shadow:0 1px 4px rgba(0,0,0,.08); overflow:hidden; }
+.history-item { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #f5f5f5; }
+.history-item:last-child { border-bottom:none; }
+.history-item .hi-title { flex:1; font-size:14px; color:#333; }
+.history-item .hi-time { font-size:12px; color:#999; }
+.history-item .hi-badge { font-size:11px; padding:2px 10px; border-radius:10px; background:#e8f5e9; color:#2d8a4e; font-weight:600; }
+</style>
+</head>
+<body>
+<div id="app">
+<div class="header">
+  <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+  <h1>🎵 乐团管理平台</h1>
+  <span class="env">Orchestra v1.0</span>
+  <div class="header-right">
+    <div class="user-name" id="headerUser">
+      <img id="avatarThumb" src="" style="width:32px;height:32px;border-radius:50%;object-fit:cover;background:#eee;vertical-align:middle">
+      <div class="dropdown">
+        <div style="padding:12px 16px;border-bottom:1px solid #eee">
+          <div id="dropName" style="font-weight:600;font-size:14px"></div>
+          <div id="dropId" style="font-size:12px;color:#999;margin-top:2px"></div>
+        </div>
+        <a href="/my-registrations">📋 我的报名</a>
+        <a href="/profile">👤 个人信息</a>
+        <a onclick="logout()">🚪 退出登录</a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="container">
+  <nav class="sidebar">
+    <a href="/home">🏠 首页</a>
+    <a href="/persons">👤 成员管理</a>
+    <a href="/events">📅 活动管理</a>
+    <a href="/attendance">📋 出勤管理</a>
+    <a href="/checkin" class="active">📍 活动打卡</a>
+    <a href="/rooms">🎹 琴房预约</a>
+    <a href="/scores">🎼 乐谱管理</a>
+    <a href="/logistics">📦 后勤管理</a>
+    <a href="/articles">📰 文章管理</a>
+    <a href="/my-registrations">📋 我的报名</a>
+    <a href="/profile">👤 个人信息</a>
+  </nav>
+  <div class="main" id="main-content">
+    <div id="page-checkin" class="page active"></div>
+  </div>
+</div>
+</div>
+<div id="toast"></div>
+<script src="/js/shared/constants.js"></script>
+<script src="/js/shared/utils.js"></script>
+<script src="/js/shared/auth.js"></script>
+<script src="/js/pages/checkin.js"></script>
+</body>
+</html>

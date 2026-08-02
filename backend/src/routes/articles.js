@@ -3,6 +3,10 @@ const pool = require('../db');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const { loadUser, requireManager } = require('../middleware/auth');
+
+// 载入当前用户（req.user），供 requireManager 判断
+router.use(loadUser);
 
 const ARTICLE_UPLOAD_DIR = path.join(__dirname, '../../uploads/articles');
 
@@ -70,8 +74,8 @@ router.get('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/articles/upload-image — 上传文章图片
-router.post('/upload-image', articleUpload.single('image'), async (req, res) => {
+// POST /api/articles/upload-image — 上传文章图片（仅管理员）
+router.post('/upload-image', requireManager, articleUpload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: '请选择图片' });
   // 保留原始扩展名重命名
   const ext = path.extname(req.file.originalname) || '.png';
@@ -83,8 +87,8 @@ router.post('/upload-image', articleUpload.single('image'), async (req, res) => 
   if (err) res.status(400).json({ success: false, message: err.message });
 });
 
-// POST /api/articles/upload-file — 上传文章附件（任意文件）
-router.post('/upload-file', fileUpload.single('file'), async (req, res) => {
+// POST /api/articles/upload-file — 上传文章附件（任意文件，仅管理员）
+router.post('/upload-file', requireManager, fileUpload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: '请选择文件' });
   const ext = path.extname(req.file.originalname) || '';
   const newName = req.file.filename + ext;
@@ -101,25 +105,25 @@ router.post('/upload-file', fileUpload.single('file'), async (req, res) => {
   });
 });
 
-// POST /api/articles — 新增
-router.post('/', async (req, res, next) => {
+// POST /api/articles — 新增（仅管理员）
+router.post('/', requireManager, async (req, res, next) => {
   try {
-    const { type, title, content, images, attachments, startTime, endTime } = req.body;
+    const { type, title, content, images, attachments, startTime, endTime, location } = req.body;
     if (!title) return res.status(400).json({ success: false, message: '标题为必填项' });
     const imgStr = images ? (Array.isArray(images) ? images.join(',') : images) : null;
     const attStr = attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : null;
     const [result] = await pool.query(
-      'INSERT INTO articles (type, title, content, images, attachments, startTime, endTime) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [type !== undefined ? parseInt(type) : 0, title, content || null, imgStr, attStr, startTime || null, endTime || null]
+      'INSERT INTO articles (type, title, content, images, attachments, startTime, endTime, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [type !== undefined ? parseInt(type) : 0, title, content || null, imgStr, attStr, startTime || null, endTime || null, location || null]
     );
     res.status(201).json({ success: true, message: '已添加', articleId: result.insertId });
   } catch (err) { next(err); }
 });
 
-// PUT /api/articles/:id
-router.put('/:id', async (req, res, next) => {
+// PUT /api/articles/:id（仅管理员）
+router.put('/:id', requireManager, async (req, res, next) => {
   try {
-    const fields = ['type', 'title', 'content', 'images', 'attachments', 'startTime', 'endTime'];
+    const fields = ['type', 'title', 'content', 'images', 'attachments', 'startTime', 'endTime', 'location'];
     const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
     if (!sets.length) return res.status(400).json({ success: false, message: '无更新字段' });
     const values = fields.filter(f => req.body[f] !== undefined).map(f => {
@@ -135,8 +139,8 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/articles/:id
-router.delete('/:id', async (req, res, next) => {
+// DELETE /api/articles/:id（仅管理员）
+router.delete('/:id', requireManager, async (req, res, next) => {
   try {
     const [result] = await pool.query('DELETE FROM articles WHERE articleId = ?', [req.params.id]);
     if (!result.affectedRows) return res.status(404).json({ success: false, message: '未找到' });

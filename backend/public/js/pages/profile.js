@@ -11,7 +11,7 @@ async function showProfile() {
 
   let html = `<div class="profile-wrap">
     <div class="profile-avatar">
-      <img src="/api/auth/avatar" id="profileAvatar">
+      <img src="/api/auth/avatar?t=${Date.now()}" id="profileAvatar">
       <div class="edit-badge" onclick="document.getElementById('avatarInput').click()">📷 更换头像</div>
       <input id="avatarInput" type="file" accept="image/*" style="display:none" onchange="startCrop(this)">
     </div>`;

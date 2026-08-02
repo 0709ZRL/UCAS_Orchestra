@@ -8,7 +8,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.innerWidth <= 900) document.querySelector('.sidebar')?.classList.remove('open');
   });
   checkAuth().then(ok => {
-    if (ok) renderArticleList();
+    if (!ok) return;
+    // 文章管理功能仅管理人员可用；非管理员直接跳回首页（界面不显示）
+    const me = window._me || {};
+    if (me.isManager != 1) {
+      location.replace('/home');
+      return;
+    }
+    renderArticleList();
   });
 });
 
@@ -181,6 +188,26 @@ function renderEditor(el, data) {
     + '<div class="form-group" style="flex:1"><label>活动结束时间</label>'
     + '<input id="ae-endTime" type="datetime-local" value="' + (data && data.endTime ? fmtDT(data.endTime) : '') + '" style="width:100%;padding:10px 12px;border:1px solid #d9d9d9;border-radius:8px;font-size:14px"></div>'
     + '</div>'
+    + '<div id="ae-location-field" style="display:' + (type==2?'none':'') + ';margin-bottom:14px">'
+    + '<label>打卡地点</label>'
+    + '<div class="loc-search-wrap">'
+    + '<div class="loc-search-row">'
+    + '<input id="ae-loc-search" type="text" placeholder="输入地名搜索，或直接输入 纬度,经度（如 39.9,116.3）" style="flex:1;padding:10px 12px;border:1px solid #d9d9d9;border-radius:8px 0 0 8px;font-size:14px;outline:none" value="">'
+    + '<button class="loc-search-btn" onclick="doLocSearch()">🔍 搜索</button>'
+    + '</div>'
+    + '<div id="ae-loc-results" class="loc-results" style="display:none"></div>'
+    + '<input id="ae-location" type="hidden" value="' + escHtml(data && data.location ? data.location : '') + '">'
+    + '<div id="ae-loc-display" style="display:' + (data && data.location ? 'flex' : 'none') + ';align-items:center;gap:12px;margin-top:8px">'
+    + '<div class="loc-badge" id="ae-loc-badge">📍 <span id="ae-loc-name-display">已选地点</span>'
+    + ' <span id="ae-loc-coord-display" style="color:#999;font-size:12px">(' + escHtml(data && data.location ? data.location : '') + ')</span>'
+    + '<span class="loc-remove" onclick="clearLocation()">✕</span></div>'
+    + '</div>'
+    + '<div id="ae-loc-map" style="display:' + (data && data.location ? 'block' : 'none') + ';margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0;height:160px;background:#f5f5f5">'
+    + '<iframe id="ae-loc-map-iframe" style="width:100%;height:100%;border:none" sandbox="allow-scripts" loading="lazy"></iframe>'
+    + '</div>'
+    + '<div style="font-size:12px;color:#999;margin-top:6px">💡 支持输入地名搜索，也可直接输入 <b>纬度,经度</b>（如 39.9042,116.4074）。若搜索失败可前往 <a href="https://lbs.amap.com/console/show/picker" target="_blank" style="color:#667eea">高德坐标拾取器</a></div>'
+    + '</div>'
+    + '</div>'
     + '<div class="form-group" style="margin-bottom:14px"><label>正文内容</label>'
     + '<div style="border:1px solid #d9d9d9;border-radius:8px;overflow:hidden">'
     + '<div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px;border-bottom:1px solid #eee;background:#fafafa">'
@@ -301,6 +328,8 @@ async function saveArticle() {
     const et = document.getElementById('ae-endTime')?.value;
     if (st) body.startTime = st;
     if (et) body.endTime = et;
+    const loc = document.getElementById('ae-location')?.value?.trim();
+    if (loc) body.location = loc;
   }
   if (_uploadedFiles.length) body.attachments = JSON.stringify(_uploadedFiles);
   try {
@@ -320,12 +349,152 @@ async function saveArticle() {
   window._submitting = false;
 }
 
-// 显示/隐藏活动时间字段
+// 显示/隐藏活动时间字段和地点字段
 function toggleEventTimes() {
   const t = parseInt(document.getElementById('ae-type')?.value || '0');
   const el = document.getElementById('ae-time-fields');
   if (el) el.style.display = t === 2 ? 'none' : 'flex';
+  const locEl = document.getElementById('ae-location-field');
+  if (locEl) locEl.style.display = t === 2 ? 'none' : '';
+  if (t === 2) clearLocation();
 }
+
+// ===== 地点搜索功能 =====
+let _locSearchTimer = null;
+
+// 使用 Nominatim (OpenStreetMap) 进行地名搜索
+// 如果搜索不可用，可直接输入"纬度,经度"坐标
+async function doLocSearch() {
+  const q = document.getElementById('ae-loc-search')?.value?.trim();
+  const resultsEl = document.getElementById('ae-loc-results');
+  if (!resultsEl) return;
+
+  resultsEl.innerHTML = '';
+  resultsEl.style.display = 'none';
+
+  if (!q) return;
+
+  resultsEl.innerHTML = '<div class="loc-result-item" style="color:#999;cursor:default">⏳ 搜索中...</div>';
+  resultsEl.style.display = 'block';
+
+  // 判断是否直接输入了坐标（如 39.9042,116.4074）
+  const coordMatch = q.match(/^(-?\d+\.?\d*)\s*[,，]\s*(-?\d+\.?\d*)$/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]);
+    const lng = parseFloat(coordMatch[2]);
+    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      resultsEl.innerHTML = ''
+        + '<div class="loc-result-item" onclick="selectLocation(\'' + escHtml(q) + '\', ' + lat + ', ' + lng + ')">'
+        + '📍 <strong>直接使用坐标：' + q + '</strong></div>';
+      return;
+    }
+  }
+
+  // 从浏览器端调用 Nominatim 进行地名搜索
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&q='
+      + encodeURIComponent(q) + '&limit=8&accept-language=zh';
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'OrchestraManagement/1.0' },
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    const data = await response.json();
+
+    if (!data || !data.length) {
+      showSearchFailed(resultsEl);
+      return;
+    }
+
+    let html = '';
+    data.forEach(item => {
+      const name = item.display_name || '';
+      const lat = parseFloat(item.lat);
+      const lng = parseFloat(item.lon);
+      const shortName = name.length > 60 ? name.substring(0, 60) + '…' : name;
+      const safeName = shortName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      html += '<div class="loc-result-item" onclick="selectLocation(\'' + safeName + '\', ' + lat + ', ' + lng + ')">'
+        + '<div class="loc-result-name">📍 ' + escHtml(shortName) + '</div>'
+        + '<div class="loc-result-coord">' + lat.toFixed(6) + ', ' + lng.toFixed(6) + '</div>'
+        + '</div>';
+    });
+    resultsEl.innerHTML = html;
+  } catch (e) {
+    showSearchFailed(resultsEl);
+  }
+}
+
+// 搜索失败时的提示
+function showSearchFailed(resultsEl) {
+  resultsEl.innerHTML = ''
+    + '<div class="loc-result-item" style="color:#e94560;cursor:default;font-size:13px">'
+    + '⚠️ 地名搜索暂时不可用</div>'
+    + '<div class="loc-result-item" style="color:#666;cursor:default;font-size:12px;line-height:1.5">'
+    + '方式一：直接输入 <b>纬度,经度</b> 后搜索<br>'
+    + '方式二：前往 <a href="https://lbs.amap.com/console/show/picker" target="_blank" style="color:#667eea">高德坐标拾取器</a> 获取坐标后粘贴</div>';
+}
+
+// 选择地点
+function selectLocation(name, lat, lng) {
+  const coordStr = lat.toFixed(6) + ',' + lng.toFixed(6);
+  document.getElementById('ae-location').value = coordStr;
+  document.getElementById('ae-loc-search').value = name;
+  document.getElementById('ae-loc-name-display').textContent = name;
+  document.getElementById('ae-loc-coord-display').textContent = '(' + coordStr + ')';
+  document.getElementById('ae-loc-display').style.display = 'flex';
+  closeLocResults();
+
+  // 更新地图
+  const mapEl = document.getElementById('ae-loc-map');
+  const iframe = document.getElementById('ae-loc-map-iframe');
+  if (mapEl && iframe) {
+    mapEl.style.display = 'block';
+    iframe.src = 'https://www.openstreetmap.org/export/embed.html?bbox='
+      + (lng - 0.005) + ',' + (lat - 0.005) + ',' + (lng + 0.005) + ',' + (lat + 0.005)
+      + '&layer=mapnik&marker=' + lat + ',' + lng;
+  }
+
+  showToast('✅ 已选择地点');
+}
+
+// 清除地点
+function clearLocation() {
+  document.getElementById('ae-location').value = '';
+  document.getElementById('ae-loc-display').style.display = 'none';
+  document.getElementById('ae-loc-map').style.display = 'none';
+  document.getElementById('ae-loc-search').value = '';
+  const iframe = document.getElementById('ae-loc-map-iframe');
+  if (iframe) iframe.src = '';
+  closeLocResults();
+}
+
+// 关闭搜索结果
+function closeLocResults() {
+  const el = document.getElementById('ae-loc-results');
+  if (el) el.style.display = 'none';
+}
+
+// 点击页面其他地方关闭搜索结果
+document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('click', function(e) {
+    const wrap = document.querySelector('.loc-search-wrap');
+    const results = document.getElementById('ae-loc-results');
+    if (results && results.style.display !== 'none' && wrap && !wrap.contains(e.target)) {
+      results.style.display = 'none';
+    }
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && document.activeElement?.id === 'ae-loc-search') {
+      e.preventDefault();
+      doLocSearch();
+    }
+  });
+});
 
 function scrollToTop() {
   const main = document.querySelector('.main');

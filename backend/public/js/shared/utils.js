@@ -55,6 +55,46 @@ async function api(path, opts = {}) {
   return r.json();
 }
 
+// ===== 角色权限（依赖 window._me，由 auth.js 的 checkAuth 设置） =====
+function meRole() {
+  const me = window._me || {};
+  return {
+    isManager: me.isManager == 1,
+    isSectionLeader: me.job == 1,
+    section: me.section
+  };
+}
+
+// 成员声部数字 → 乐谱声部名称（与后端一致）
+function scoreSectionName(intSec) {
+  const map = {0:'民族管乐声部',1:'弹拨一组',2:'弹拨二组',3:'胡琴声部',4:'提琴声部',5:'西洋木管声部',6:'西洋铜管声部',7:'低音声部',8:'钢琴声部',9:'打击声部',10:'无声部'};
+  return map[intSec] || '';
+}
+
+// 某页面当前用户是否可“新增”
+function canAdd(page) {
+  const r = meRole();
+  if (r.isManager) return true;
+  if (page === 'logistics') return true; // 后勤所有登录用户可管理
+  if (['persons', 'scores'].includes(page)) return r.isSectionLeader;
+  return false; // articles 仅管理员（页面已锁）
+}
+
+// 某行是否可“编辑/删除”
+function canOperateRow(page, row) {
+  const r = meRole();
+  if (r.isManager) return true;
+  if (page === 'logistics') return true; // 后勤所有登录用户可管理
+  if (!r.isSectionLeader) return false;
+  if (page === 'persons') {
+    return Number(row.section) === Number(r.section);
+  }
+  if (page === 'scores') {
+    return Number(row.isTotal) === 0 && String(row.section) === scoreSectionName(r.section);
+  }
+  return false;
+}
+
 // 全局联动
 function toggleManagerJob() {
   const el = document.getElementById('f-isManager');
@@ -99,7 +139,13 @@ function buildToolbar(page, searchFields) {
     }
   });
   html += `<button onclick="loadPage('${page}')">🔍 搜索</button>`;
-  html += `<button class="btn-green" onclick="showForm('${page}')">＋ 新增</button>`;
+  if (canAdd(page)) {
+    html += `<button class="btn-green" onclick="showForm('${page}')">＋ 新增</button>`;
+  }
+  // 数据大屏入口（成员管理页）
+  if (page === 'persons' && typeof showPersonDashboard === 'function') {
+    html += `<button class="btn-dashboard" onclick="showPersonDashboard()">📊 数据大屏</button>`;
+  }
   html += `</div>`;
   return html;
 }
@@ -109,6 +155,8 @@ function buildTable(data, columns, fieldLookup) {
   if (!data || !data.length) return '<p style="padding:20px;text-align:center;color:#999">暂无数据</p>';
   let html = '<table><tr>' + columns.map(c => `<th>${c.label}</th>`).join('') + '<th>操作</th></tr>';
   data.forEach(row => {
+    const page = columns[0]._page;
+    const canOp = canOperateRow(page, row);
     html += '<tr>' + columns.map(c => {
       if (c.render) return `<td>${c.render(row, fieldLookup)}</td>`;
       let v = row[c.key];
@@ -121,8 +169,8 @@ function buildTable(data, columns, fieldLookup) {
       }
       return `<td>${v}</td>`;
     }).join('') + `<td class="actions">
-      <button class="btn-edit" onclick="showForm('${columns[0]._page}',${JSON.stringify(row).replace(/"/g,"'")})">编辑</button>
-      <button class="btn-del" onclick="delRow('${columns[0]._page}','${row[columns.find(c=>c._id).key]}')">删除</button>
+      ${canOp ? `<button class="btn-edit" onclick="showForm('${page}',${JSON.stringify(row).replace(/"/g,"'")})">编辑</button>` : ''}
+      ${canOp ? `<button class="btn-del" onclick="delRow('${page}','${row[columns.find(c=>c._id).key]}')">删除</button>` : ''}
     </td></tr>`;
   });
   html += '</table>';
@@ -349,4 +397,18 @@ function showForm(page, data) {
   </div>`;
   openModal(html);
   if (toggleAfterOpen) { const fn = window[toggleAfterOpen]; if (fn) setTimeout(fn, 0); }
+
+  // 声部长新增：字段锁定为本声部
+  const r = meRole();
+  if (!isEdit && r.isSectionLeader && !r.isManager) {
+    if (page === 'persons') {
+      const secSel = document.getElementById('f-section');
+      if (secSel) { secSel.value = String(r.section); secSel.disabled = true; }
+    } else if (page === 'scores') {
+      const secSel = document.getElementById('f-section');
+      const totalSel = document.getElementById('f-isTotal');
+      if (secSel) { secSel.value = scoreSectionName(r.section); secSel.disabled = true; }
+      if (totalSel) { totalSel.value = '0'; totalSel.disabled = true; }
+    }
+  }
 }

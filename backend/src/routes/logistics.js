@@ -5,6 +5,9 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const router = express.Router();
+const { loadUser, requireAuth } = require('../middleware/auth');
+
+router.use(loadUser);
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads/logistics');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -107,8 +110,8 @@ router.get('/:itemId/image', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/logistics — 新增物品（无图片）
-router.post('/', async (req, res, next) => {
+// POST /api/logistics — 新增物品（无图片，登录用户均可）
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const { name, campus, address, isPublic, belongsToId } = req.body;
     if (!name) return res.status(400).json({ success: false, message: 'name 为必填项' });
@@ -128,8 +131,8 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// POST /api/logistics/upload — 新增物品 + 可选图片上传
-router.post('/upload', (req, res, next) => {
+// POST /api/logistics/upload — 新增物品 + 可选图片上传（登录用户均可）
+router.post('/upload', requireAuth, (req, res, next) => {
   upload.single('image')(req, res, async (err) => {
     if (err) {
       if (err.message?.startsWith('仅允许')) return res.status(400).json({ success: false, message: err.message });
@@ -165,8 +168,8 @@ router.post('/upload', (req, res, next) => {
   });
 });
 
-// PUT /api/logistics/:itemId — 更新
-router.put('/:itemId', async (req, res, next) => {
+// PUT /api/logistics/:itemId — 更新（登录用户均可）
+router.put('/:itemId', requireAuth, async (req, res, next) => {
   try {
     const fields = ['name', 'campus', 'address', 'isPublic', 'belongsToId'];
     const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
@@ -179,8 +182,8 @@ router.put('/:itemId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/logistics/:itemId — 同时删除图片
-router.delete('/:itemId', async (req, res, next) => {
+// DELETE /api/logistics/:itemId — 同时删除图片（登录用户均可）
+router.delete('/:itemId', requireAuth, async (req, res, next) => {
   try {
     const [rows] = await pool.query('SELECT * FROM logistics WHERE itemId = ?', [req.params.itemId]);
     if (!rows.length) return res.status(404).json({ success: false, message: '未找到该物品' });

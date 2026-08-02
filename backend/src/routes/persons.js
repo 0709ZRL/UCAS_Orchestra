@@ -4,8 +4,15 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const router = express.Router();
+const { loadUser, isManager: isManagerUser, isSectionLeader } = require('../middleware/auth');
+
+// 载入当前用户（req.user），供权限判断
+router.use(loadUser);
 
 const AVATAR_DIR = path.join(__dirname, '../../uploads/avatars');
+
+// 声部长的声部映射（persons.section 数字 → 名称）
+const SECTION_NAMES = { 0:'民族管乐',1:'弹拨一组',2:'弹拨二组',3:'胡琴',4:'提琴',5:'西洋木管',6:'西洋铜管',7:'低音',8:'钢琴',9:'打击',10:'无声部' };
 
 function saveAvatar(base64Str, personalId) {
   if (!base64Str || !base64Str.startsWith('data:image/')) return null;
@@ -52,6 +59,58 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/persons/stats — 成员统计（数据大屏）
+// 必须定义在 /:personalId 之前，避免 'stats' 被当作 personalId
+router.get('/stats', async (req, res, next) => {
+  try {
+    const [totalRows] = await pool.query('SELECT COUNT(*) AS total FROM persons');
+    const total = totalRows[0].total;
+
+    const [genderRows] = await pool.query('SELECT gender, COUNT(*) AS cnt FROM persons GROUP BY gender');
+    const gender = { male: 0, female: 0 };
+    genderRows.forEach(r => { if (r.gender == 1) gender.male = r.cnt; else gender.female = r.cnt; });
+
+    const SECTION_NAMES = { 0:'民族管乐',1:'弹拨一组',2:'弹拨二组',3:'胡琴',4:'提琴',5:'西洋木管',6:'西洋铜管',7:'低音',8:'钢琴',9:'打击',10:'无声部' };
+    const [sectionRows] = await pool.query('SELECT section, COUNT(*) AS cnt FROM persons GROUP BY section');
+    const sections = sectionRows
+      .map(r => ({ key: r.section, name: SECTION_NAMES[r.section] || ('声部' + r.section), count: r.cnt }))
+      .sort((a, b) => b.count - a.count);
+
+    const CAMPUS_NAMES = { 0:'中关村校区',1:'玉泉路校区',3:'雁栖湖校区',4:'京内其他',5:'京外其他' };
+    const [campusRows] = await pool.query('SELECT campus, COUNT(*) AS cnt FROM persons GROUP BY campus');
+    const campuses = campusRows
+      .map(r => ({ key: r.campus, name: CAMPUS_NAMES[r.campus] || ('校区' + r.campus), count: r.cnt }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json({ success: true, data: { total, gender, sections, campuses } });
+  } catch (err) { next(err); }
+});
+
+// GET /api/persons/search?q=姓名或personId — 琴房预约参与者搜索
+// 必须定义在 /:personalId 之前，避免 'search' 被当作 personalId
+router.get('/search', async (req, res, next) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) return res.json({ success: true, data: [] });
+    const keyword = q.trim();
+    let rows;
+    if (/^[P][0-9A-Z]+$/i.test(keyword)) {
+      // 精确 personId 匹配
+      [rows] = await pool.query(
+        'SELECT personalId, name, isOrchestraMember FROM persons WHERE personalId = ?',
+        [keyword]
+      );
+    } else {
+      // 姓名模糊搜索
+      [rows] = await pool.query(
+        'SELECT personalId, name, isOrchestraMember FROM persons WHERE name LIKE ? LIMIT 10',
+        [`%${keyword}%`]
+      );
+    }
+    res.json({ success: true, data: rows });
+  } catch (err) { next(err); }
+});
+
 // GET /api/persons/:personalId — 单个
 router.get('/:personalId', async (req, res, next) => {
   try {
@@ -62,11 +121,21 @@ router.get('/:personalId', async (req, res, next) => {
 });
 
 // POST /api/persons — 新增（personalId 由系统自动生成）
+// 权限：管理员可新增任意成员；声部长只能新增本声部成员；普通成员禁止
 router.post('/', async (req, res, next) => {
   try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, message: '请先登录' });
+    if (!isManagerUser(user) && !isSectionLeader(user)) {
+      return res.status(403).json({ success: false, message: '普通成员不能新增成员' });
+    }
     const { name, gender, institute, grade, campus, section, job, isManager, managerJob, instrument, isMaster } = req.body;
     if (!name) {
       return res.status(400).json({ success: false, message: 'name 为必填项' });
+    }
+    // 声部长只能新增本声部成员
+    if (!isManagerUser(user) && parseInt(section !== undefined ? section : 0) !== user.section) {
+      return res.status(403).json({ success: false, message: '声部长只能新增本声部成员' });
     }
     const personalId = generatePersonalId();
     await pool.query(
@@ -92,8 +161,26 @@ router.post('/', async (req, res, next) => {
 });
 
 // PUT /api/persons/:personalId — 更新
+// 权限：管理员可编辑任意成员；声部长只能编辑本声部成员；普通成员禁止
 router.put('/:personalId', async (req, res, next) => {
   try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, message: '请先登录' });
+    if (!isManagerUser(user) && !isSectionLeader(user)) {
+      return res.status(403).json({ success: false, message: '普通成员不能编辑成员' });
+    }
+    // 声部长：目标成员必须属于本声部
+    if (!isManagerUser(user)) {
+      const [target] = await pool.query('SELECT section FROM persons WHERE personalId = ?', [req.params.personalId]);
+      if (!target.length) return res.status(404).json({ success: false, message: '未找到该成员' });
+      if (target[0].section !== user.section) {
+        return res.status(403).json({ success: false, message: '声部长只能编辑本声部成员' });
+      }
+      // 声部长不允许把成员改到其他声部
+      if (req.body.section !== undefined && parseInt(req.body.section) !== user.section) {
+        return res.status(403).json({ success: false, message: '声部长不能将成员调至其他声部' });
+      }
+    }
     const fields = ['name', 'gender', 'institute', 'grade', 'campus', 'section', 'job', 'isManager', 'managerJob', 'instrument', 'isMaster'];
     const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
     // 处理头像
@@ -115,8 +202,21 @@ router.put('/:personalId', async (req, res, next) => {
 });
 
 // DELETE /api/persons/:personalId — 删除
+// 权限：管理员可删除任意成员；声部长只能删除本声部成员；普通成员禁止
 router.delete('/:personalId', async (req, res, next) => {
   try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ success: false, message: '请先登录' });
+    if (!isManagerUser(user) && !isSectionLeader(user)) {
+      return res.status(403).json({ success: false, message: '普通成员不能删除成员' });
+    }
+    if (!isManagerUser(user)) {
+      const [target] = await pool.query('SELECT section FROM persons WHERE personalId = ?', [req.params.personalId]);
+      if (!target.length) return res.status(404).json({ success: false, message: '未找到该成员' });
+      if (target[0].section !== user.section) {
+        return res.status(403).json({ success: false, message: '声部长只能删除本声部成员' });
+      }
+    }
     const [result] = await pool.query('DELETE FROM persons WHERE personalId = ?', [req.params.personalId]);
     if (!result.affectedRows) return res.status(404).json({ success: false, message: '未找到该成员' });
     res.json({ success: true, message: '已删除' });
