@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>乐团管理平台</title>
+<title>国科大民族管弦乐团管理平台</title>
 <link rel="stylesheet" href="/cropper.min.css">
 <script src="/cropper.min.js" defer></script>
 <style>
@@ -165,7 +165,7 @@ tr:hover{background:#f8f9ff}
 <div id="app" style="display:none">
 <div class="header">
   <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-  <h1>🎵 乐团管理平台</h1>
+  <h1>🎵 国科大民族管弦乐团管理平台</h1>
   <span class="env">Orchestra v1.0</span>
   <div class="header-right">
     <div class="user-name" id="headerUser">

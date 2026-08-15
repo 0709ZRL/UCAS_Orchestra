@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const { getTokenFromReq } = require('../middleware/auth');
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'orchestra_secret_key_2026';
@@ -82,7 +83,8 @@ router.post('/register', async (req, res, next) => {
     const token = jwt.sign({ personalId, account, name }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', token, COOKIE_OPTIONS);
     res.cookie('userName', name, { ...COOKIE_OPTIONS, httpOnly: false });
-    res.status(201).json({ success: true, message: '注册成功', personalId, name });
+    // token 同时放入响应体，便于外部程序（小程序）直接保存
+    res.status(201).json({ success: true, message: '注册成功', personalId, name, token });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: '该账号已被注册' });
     next(err);
@@ -108,22 +110,25 @@ router.post('/login', async (req, res, next) => {
     );
     res.cookie('token', token, COOKIE_OPTIONS);
     res.cookie('userName', user.name, { ...COOKIE_OPTIONS, httpOnly: false });
-    res.json({ success: true, message: '登录成功', name: user.name });
+    // token 同时放入响应体，便于外部程序（小程序）直接保存，无需解析 Set-Cookie
+    res.json({ success: true, message: '登录成功', name: user.name, token });
   } catch (err) { next(err); }
 });
 
-// GET /api/auth/me — 获取当前登录用户
+// GET /api/auth/me — 获取当前登录用户的完整个人信息（不含密码）
 router.get('/me', async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
+    const token = getTokenFromReq(req);
     if (!token) return res.json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
-    // 附带管理员/声部/职位标识（琴房预约、声部明细权限用）
-    const [rows] = await pool.query('SELECT isManager, section, job FROM persons WHERE personalId = ?', [decoded.personalId]);
-    const isManager = rows.length ? rows[0].isManager : 0;
-    const section = rows.length ? rows[0].section : 0;
-    const job = rows.length ? rows[0].job : 0;
-    res.json({ success: true, data: { personalId: decoded.personalId, account: decoded.account, name: decoded.name, isManager, section, job } });
+    const [rows] = await pool.query(
+      `SELECT personalId, account, name, gender, institute, grade, campus, section, job,
+              isManager, managerJob, instrument, isMaster, avatarhash, isOrchestraMember
+       FROM persons WHERE personalId = ?`,
+      [decoded.personalId]
+    );
+    if (!rows.length) return res.json({ success: false, message: '用户不存在' });
+    res.json({ success: true, data: rows[0] });
   } catch (err) {
     res.clearCookie('token'); res.clearCookie('userName');
     return res.json({ success: false, message: '登录已过期' });
@@ -142,7 +147,7 @@ router.post('/avatar', (req, res, next) => {
   avatarUpload.single('avatar')(req, res, async (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message || '上传失败' });
     try {
-      const token = req.cookies?.token;
+      const token = getTokenFromReq(req);
       if (!token) return res.status(401).json({ success: false, message: '未登录' });
       const decoded = jwt.verify(token, JWT_SECRET);
       if (!req.file) return res.status(400).json({ success: false, message: '请选择图片' });
@@ -173,7 +178,7 @@ router.post('/avatar', (req, res, next) => {
 // GET /api/auth/avatar — 获取当前用户头像
 router.get('/avatar', async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
+    const token = getTokenFromReq(req);
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const [rows] = await pool.query('SELECT avatarhash FROM persons WHERE personalId = ?', [decoded.personalId]);
@@ -192,7 +197,7 @@ router.get('/avatar', async (req, res, next) => {
 // PUT /api/auth/profile — 修改个人信息（不含密码）
 router.put('/profile', async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
+    const token = getTokenFromReq(req);
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const fields = ['name','gender','institute','grade','campus','section','job','isManager','managerJob','instrument','isMaster'];

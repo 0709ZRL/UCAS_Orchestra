@@ -111,6 +111,22 @@ router.get('/search', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/persons/:personalId/avatar — 按 personalId 获取头像（公开，无需登录；供外部程序/小程序展示任意用户头像）
+router.get('/:personalId/avatar', async (req, res, next) => {
+  try {
+    const [rows] = await pool.query('SELECT avatarhash FROM persons WHERE personalId = ?', [req.params.personalId]);
+    const hash = rows[0]?.avatarhash;
+    if (!hash) return res.status(404).json({ success: false, message: '该用户无头像' });
+    const files = fs.readdirSync(AVATAR_DIR);
+    const match = files.find(f => f.startsWith(hash));
+    if (!match) return res.status(404).json({ success: false, message: '头像文件不存在' });
+    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp' };
+    res.setHeader('Content-Type', mimeMap[path.extname(match).toLowerCase()] || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    fs.createReadStream(path.join(AVATAR_DIR, match)).pipe(res);
+  } catch (err) { next(err); }
+});
+
 // GET /api/persons/:personalId — 单个
 router.get('/:personalId', async (req, res, next) => {
   try {

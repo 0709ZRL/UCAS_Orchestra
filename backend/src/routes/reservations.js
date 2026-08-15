@@ -2,6 +2,7 @@ const express = require('express');
 const pool = require('../db');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const { getTokenFromReq } = require('../middleware/auth');
 const JWT_SECRET = process.env.JWT_SECRET || 'orchestra_secret_key_2026';
 
 // 营业时间
@@ -11,7 +12,7 @@ const MAX_PARTICIPANTS = 6;
 
 function getUser(req) {
   try {
-    const token = req.cookies?.token;
+    const token = getTokenFromReq(req);
     if (!token) return null;
     return jwt.verify(token, JWT_SECRET);
   } catch { return null; }

@@ -188,7 +188,7 @@ async function showScoreDetail(id) {
   } else {
     history.replaceState({ page: 'score', id: id }, '', expectedPath);
   }
-  document.title = '乐谱详情 - 乐团管理平台';
+  document.title = '乐谱详情 - 国科大民族管弦乐团管理平台';
   const el = document.getElementById('page-home');
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px;margin-bottom:20px">⏳</div><div>加载中...</div></div>';
@@ -245,7 +245,7 @@ async function showAllScores(page) {
   } else {
     history.replaceState({ page: 'scores', page: page }, '', fullUrl);
   }
-  document.title = '乐谱下载 - 乐团管理平台';
+  document.title = '乐谱下载 - 国科大民族管弦乐团管理平台';
   const el = document.getElementById('page-home');
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px;margin-bottom:20px">⏳</div><div>加载中...</div></div>';
@@ -307,7 +307,7 @@ async function showAllArticles(type, page) {
   } else {
     history.replaceState({ page: 'articles-type', type: type, page: page }, '', fullUrl);
   }
-  document.title = TYPE_LABELS[type] + ' - 乐团管理平台';
+  document.title = TYPE_LABELS[type] + ' - 国科大民族管弦乐团管理平台';
   const el = document.getElementById('page-home');
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px;margin-bottom:20px">⏳</div><div>加载中...</div></div>';
@@ -367,7 +367,7 @@ async function showArticleDetail(id) {
   } else {
     history.replaceState({ page: 'article', id: id }, '', expectedPath);
   }
-  document.title = '文章详情 - 乐团管理平台';
+  document.title = '文章详情 - 国科大民族管弦乐团管理平台';
   const el = document.getElementById('page-home');
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:40px"><div style="font-size:40px;margin-bottom:20px">⏳</div><div>加载中...</div></div>';
@@ -412,7 +412,7 @@ async function showMyRegistrations() {
   } else {
     history.replaceState({ page: 'my-registrations' }, '', expectedPath);
   }
-  document.title = '我的报名 - 乐团管理平台';
+  document.title = '我的报名 - 国科大民族管弦乐团管理平台';
   const el = document.getElementById('page-home');
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:40px">⏳ 加载中...</div>';
@@ -465,7 +465,7 @@ function goHome() {
   } else {
     history.replaceState({ page: 'home' }, '', '/home');
   }
-  document.title = '首页 - 乐团管理平台';
+  document.title = '首页 - 国科大民族管弦乐团管理平台';
   scrollToTop();
   renderHomepage();
 }
@@ -491,7 +491,7 @@ window.addEventListener('popstate', function(e) {
   } else if (myRegMatch) {
     showMyRegistrations();
   } else {
-    document.title = '首页 - 乐团管理平台';
+    document.title = '首页 - 国科大民族管弦乐团管理平台';
     renderHomepage();
   }
 });

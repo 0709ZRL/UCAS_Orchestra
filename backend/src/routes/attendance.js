@@ -2,7 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const router = express.Router();
-const { loadUser, isManager, isSectionLeader } = require('../middleware/auth');
+const { loadUser, isManager, isSectionLeader, getTokenFromReq } = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'orchestra_secret_key_2026';
 
@@ -287,8 +287,8 @@ router.get('/dashboard', async (req, res, next) => {
 // 管理员/声部长查看声部下所有成员的报名/出勤情况（管理员可看全部声部，声部长仅限本声部）
 router.get('/section-detail', async (req, res, next) => {
   try {
-    // 鉴权
-    const token = req.cookies?.token;
+    // 鉴权（支持 Bearer token 或 Cookie）
+    const token = getTokenFromReq(req);
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     let decoded;
     try { decoded = jwt.verify(token, JWT_SECRET); }

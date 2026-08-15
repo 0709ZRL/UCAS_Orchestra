@@ -8,10 +8,19 @@ const pool = require('../db');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'orchestra_secret_key_2026';
 
-// 解析 cookie 中的 JWT（不抛错）
+// 从请求中提取 token：优先 Authorization: Bearer <token>（小程序无法带 Cookie），回退 Cookie token
+function getTokenFromReq(req) {
+  const auth = req.headers?.authorization;
+  if (auth && /^Bearer\s+/i.test(auth)) {
+    return auth.replace(/^Bearer\s+/i, '').trim();
+  }
+  return req.cookies?.token || null;
+}
+
+// 解析 JWT（不抛错）
 function decodeToken(req) {
   try {
-    const token = req.cookies?.token;
+    const token = getTokenFromReq(req);
     if (!token) return null;
     return jwt.verify(token, JWT_SECRET);
   } catch { return null; }
@@ -59,4 +68,4 @@ function requirePrivileged(req, res, next) {
 function isManager(user) { return !!user && user.isManager == 1; }
 function isSectionLeader(user) { return !!user && user.job == 1; }
 
-module.exports = { loadUser, requireAuth, requireManager, requirePrivileged, isManager, isSectionLeader, decodeToken };
+module.exports = { loadUser, requireAuth, requireManager, requirePrivileged, isManager, isSectionLeader, decodeToken, getTokenFromReq };
