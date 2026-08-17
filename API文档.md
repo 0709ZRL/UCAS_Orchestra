@@ -66,6 +66,7 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 |---|---|
 | 管理员 | `persons.isManager = 1` |
 | 声部长 | `persons.job = 1` |
+| 学生指挥 | `persons.managerJob = 6` |
 | 普通成员 | 其他 |
 
 ### 2.5 分页参数
@@ -171,6 +172,20 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 | startTime / endTime | TIME | 起止时间（07:00–22:30） |
 | participants | JSON | 参与人 personalId 数组（含主预约人，≤6 人） |
 | createdAt | DATETIME | 创建时间 |
+
+### 3.9 rehearsal_records — 排练记录
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | INT UNSIGNED PK AUTO | 记录ID |
+| eventId | VARCHAR(64) NOT NULL | 关联的活动/文章（`ARTICLE_x` 或 events.eventId） |
+| eventTitle | VARCHAR(200) | 活动标题（创建时自动从活动带出） |
+| recordDate | DATE | 排练日期（创建时自动取活动开始日期） |
+| content | TEXT NOT NULL | 排练要点内容 |
+| createdBy | VARCHAR(64) | 记录人 personalId |
+| createdAt | DATETIME | 创建时间 |
+| updatedAt | DATETIME | 更新时间 |
+
+索引：`idx_event(eventId)`、`idx_date(recordDate)`。仅学生指挥（`managerJob=6`）可读写，可编辑/删除任意记录。
 
 ---
 
@@ -412,6 +427,36 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 
 ---
 
+### 4.14 排练记录 `/api/rehearsals`（仅学生指挥 managerJob=6）
+
+> 权限：所有接口仅**学生指挥**（`managerJob=6`）可用；其他角色返回 403，未登录返回 401。支持 Cookie 与 `Authorization: Bearer <token>` 两种认证。
+
+**GET /api/rehearsals** — 排练记录列表（按排练日期倒序）
+返回：
+```json
+{ "success":true, "data":[
+  { "id":1, "eventId":"ARTICLE_127", "eventTitle":"暑期合练", "recordDate":"2026-07-20",
+    "content":"……", "createdBy":"PMSxxx", "creatorName":"秦雪晴",
+    "createdAt":"2026-08-17T11:06:30.000Z", "updatedAt":"2026-08-17T11:06:30.000Z" } ] }
+```
+
+**GET /api/rehearsals/events** — 可记录的排练活动（已结束的排练通知/演出，按开始时间倒序，按标题去重，最多100条）
+返回：`{ "success":true, "data":[{ "eventId":"ARTICLE_131", "title":"测试打卡", "startTime":"...", "endTime":"..." }] }`
+
+**POST /api/rehearsals** — 为某次排练记录排练要点
+请求体：`{ "eventId":"ARTICLE_127", "content":"本次排练要点……" }`
+- `eventTitle` 与 `recordDate` 由后端根据活动自动带出；活动不存在返回 404；content 为空返回 400
+返回：`{ "success":true, "message":"排练要点已记录", "id":1 }`
+
+**PUT /api/rehearsals/:id** — 编辑排练要点
+请求体：`{ "content":"更新后的要点" }`（可选 `eventId` 更换关联活动）；记录不存在返回 404
+返回：`{ "success":true, "message":"排练要点已更新" }`
+
+**DELETE /api/rehearsals/:id** — 删除排练要点
+返回：`{ "success":true, "message":"已删除" }`；记录不存在返回 404
+
+---
+
 ## 五、数据大屏数据 API（供外部大屏 / 小程序展示）
 
 > 除特别注明外均为**公开接口，无需登录**，可直接用 GET 调用，适合投屏大屏、小程序图表等场景。
@@ -471,18 +516,25 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 ## 六、外部程序对接示例（伪代码）
 
 ```
-1. 登录拿 token：
+1. 登录拿 token（Cookie 与 Bearer 均可）：
    POST /api/auth/login  {"account":"test","password":"123456"}
-   → 保存 Set-Cookie 中的 token
+   → 响应体直接返回 token，保存后可用作 Bearer
 
 2. 查询进行中活动：
-   GET /api/events/ongoing   (带 Cookie: token=...)
+   GET /api/events/ongoing   (带 Cookie: token=... 或 Authorization: Bearer <token>)
 
 3. 打卡：
    POST /api/checkin  {"eventId":"ARTICLE_120","userLat":39.9,"userLng":116.3}
 
 4. 我的打卡历史：
    GET /api/checkin/history
+
+5. 排练记录（学生指挥）：
+   查看已结束的排练：  GET  /api/rehearsals/events   (Bearer)
+   记录排练要点：      POST /api/rehearsals  {"eventId":"ARTICLE_120","content":"要点……"}   (Bearer)
+   查看记录列表：      GET  /api/rehearsals          (Bearer)
+   编辑要点：          PUT  /api/rehearsals/1  {"content":"更新后要点"}   (Bearer)
+   删除要点：          DELETE /api/rehearsals/1      (Bearer)
 ```
 
-> 注意：所有写操作与个人数据接口都需要携带登录 Cookie；未登录统一返回 401。
+> 注意：所有写操作与个人数据接口都需要携带登录凭证（Cookie 或 `Authorization: Bearer <token>`）；未登录统一返回 401，无权限返回 403。

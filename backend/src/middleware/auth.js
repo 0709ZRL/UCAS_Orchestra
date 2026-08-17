@@ -32,7 +32,7 @@ async function loadUser(req, _res, next) {
   if (!decoded) { req.user = null; return next(); }
   try {
     const [rows] = await pool.query(
-      'SELECT personalId, name, section, job, isManager FROM persons WHERE personalId = ?',
+      'SELECT personalId, name, section, job, isManager, managerJob FROM persons WHERE personalId = ?',
       [decoded.personalId]
     );
     req.user = rows.length ? rows[0] : null;
@@ -67,5 +67,16 @@ function requirePrivileged(req, res, next) {
 // 快捷判断
 function isManager(user) { return !!user && user.isManager == 1; }
 function isSectionLeader(user) { return !!user && user.job == 1; }
+// 学生指挥：managerJob = 6
+function isConductor(user) { return !!user && user.managerJob == 6; }
 
-module.exports = { loadUser, requireAuth, requireManager, requirePrivileged, isManager, isSectionLeader, decodeToken, getTokenFromReq };
+// 仅学生指挥
+function requireConductor(req, res, next) {
+  if (!req.user) return res.status(401).json({ success: false, message: '请先登录' });
+  if (req.user.managerJob != 6) {
+    return res.status(403).json({ success: false, message: '仅学生指挥可执行此操作' });
+  }
+  next();
+}
+
+module.exports = { loadUser, requireAuth, requireManager, requirePrivileged, requireConductor, isManager, isSectionLeader, isConductor, decodeToken, getTokenFromReq };

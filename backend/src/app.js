@@ -19,6 +19,7 @@ const checkinRouter = require('./routes/checkin');
 const geocodeRouter = require('./routes/geocode');
 const roomsRouter = require('./routes/rooms');
 const reservationsRouter = require('./routes/reservations');
+const rehearsalsRouter = require('./routes/rehearsals');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,17 +44,26 @@ app.use('/cropper.min.js', express.static(path.join(__dirname, '../public/croppe
 // 暴露上传目录用于 PDF 预览
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// 注入到 HTML <head> 的角色脚本：根据 localStorage 提前给 <html> 加 is-manager 类，
-// 配合 shared.css 的 html:not(.is-manager) 规则在首次绘制前隐藏无权限导航（彻底防闪现）
-const ROLE_HEAD_SCRIPT = '<script>(function(){try{var m=JSON.parse(localStorage.getItem(\'_me\')||\'null\');if(m&&m.isManager==1)document.documentElement.classList.add(\'is-manager\')}catch(e){}})();</script>';
+// 注入到 HTML <head> 的角色脚本：根据 localStorage 提前给 <html> 加 is-manager / is-conductor 类，
+// 配合 shared.css 的 html:not(.is-manager) 等规则在首次绘制前隐藏无权限导航（彻底防闪现）
+const ROLE_HEAD_SCRIPT = '<script>(function(){try{var m=JSON.parse(localStorage.getItem(\'_me\')||\'null\');if(m&&m.isManager==1)document.documentElement.classList.add(\'is-manager\');if(m&&m.managerJob==6)document.documentElement.classList.add(\'is-conductor\')}catch(e){}})();</script>';
+
+// 注入到侧栏的导航项（排练记录，仅学生指挥可见，由 shared.css 的 is-conductor 规则控制显隐）
+const SIDEBAR_EXTRA_ITEM = '<a href="/rehearsals">🎬 排练记录</a>';
 
 function servePage(file) {
-  return (_req, res) => {
+  return (req, res) => {
     const p = path.join(__dirname, '../public', file);
     fs.readFile(p, 'utf8', (err, html) => {
       if (err) return res.status(404).send('Not found');
       if (html.includes('<head>')) {
         html = html.replace('<head>', '<head>' + ROLE_HEAD_SCRIPT);
+      }
+      // 有侧栏的页面统一注入「排练记录」导航项（当前页高亮）
+      if (html.includes('<nav class="sidebar">') && html.includes('</nav>')) {
+        const active = req.path === '/rehearsals' ? ' class="active"' : '';
+        const item = '<a href="/rehearsals"' + active + '>🎬 排练记录</a>';
+        html = html.replace('</nav>', item + '</nav>');
       }
       res.type('html').send(html);
     });
@@ -73,7 +83,8 @@ const pageRoutes = {
   '/logistics': 'logistics.html',
   '/articles': 'articles.html',
   '/checkin': 'checkin.html',
-  '/rooms': 'rooms.html'
+  '/rooms': 'rooms.html',
+  '/rehearsals': 'rehearsals.html'
 };
 // 活动管理重定向到文章管理
 app.get('/events', (_req, res) => { res.redirect('/articles'); });
@@ -110,6 +121,7 @@ app.use('/api/checkin', checkinRouter);
 app.use('/api/geocode', geocodeRouter);
 app.use('/api/rooms', roomsRouter);
 app.use('/api/reservations', reservationsRouter);
+app.use('/api/rehearsals', rehearsalsRouter);
 
 // 健康检查
 app.get('/api/health', (_req, res) => {

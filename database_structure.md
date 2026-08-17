@@ -347,6 +347,42 @@ CREATE TABLE `reservations` (
 
 ---
 
+### 9. `rehearsal_records` — 排练记录
+
+> 学生指挥（`managerJob=6`）专用：记录每次排练的要点；可查看、记录、编辑、删除任意记录。`eventTitle` / `recordDate` 在创建时由关联活动自动带出。
+
+| 字段 | 类型 | 空 | 键 | 默认值 | 说明 |
+|------|------|----|----|--------|------|
+| `id` | `int unsigned` | NO | **PRI** | — | 自增主键 |
+| `eventId` | `varchar(64)` | NO | **MUL** | — | 关联活动（`ARTICLE_x` 或 events.eventId） |
+| `eventTitle` | `varchar(200)` | YES | — | `NULL` | 活动标题（自动带出） |
+| `recordDate` | `date` | YES | **MUL** | `NULL` | 排练日期（取活动开始日期） |
+| `content` | `text` | NO | — | — | 排练要点内容 |
+| `createdBy` | `varchar(64)` | YES | — | `NULL` | 记录人 personalId |
+| `createdAt` | `datetime` | NO | — | 当前时间 | 创建时间 |
+| `updatedAt` | `datetime` | YES | — | `NULL` | 更新时间 |
+
+**索引：** 主键 `id`；普通键 `idx_event`（`eventId`）、`idx_date`（`recordDate`）
+
+**DDL：**
+```sql
+CREATE TABLE `rehearsal_records` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `eventId` varchar(64) NOT NULL COMMENT '关联活动/文章',
+  `eventTitle` varchar(200) DEFAULT NULL COMMENT '活动标题（自动带出）',
+  `recordDate` date DEFAULT NULL COMMENT '排练日期（取活动开始日期）',
+  `content` text NOT NULL COMMENT '排练要点',
+  `createdBy` varchar(64) DEFAULT NULL COMMENT '记录人 personalId',
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` datetime DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_event` (`eventId`),
+  KEY `idx_date` (`recordDate`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+```
+
+---
+
 ## 实体关系简图（ER）
 
 ```mermaid
@@ -357,6 +393,7 @@ erDiagram
     persons ||--o{ logistics : "拥有"
     rooms ||--o{ reservations : "被预约"
     persons ||--o{ reservations : "主预约"
+    persons ||--o{ rehearsal_records : "记录排练要点"
 
     persons {
         varchar(64) personalId PK
@@ -424,6 +461,15 @@ erDiagram
         time startTime
         time endTime
         json participants "含主预约人"
+    }
+
+    rehearsal_records {
+        int unsigned id PK
+        varchar(64) eventId "活动/文章"
+        varchar(200) eventTitle
+        date recordDate "排练日期"
+        text content "排练要点"
+        varchar(64) createdBy FK "记录人"
     }
 ```
 

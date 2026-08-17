@@ -32,16 +32,27 @@ function saveMe(me) {
 function applyRoleUI() {
   const me = window._me || {};
   const isManager = me.isManager == 1;
-  // 维护 <html> 的 is-manager 类：与 shared.css 的 html:not(.is-manager) 规则协同，保证导航隐藏/显示一致
+  const isConductor = me.managerJob == 6;
+  // 维护 <html> 的 is-manager / is-conductor 类：与 shared.css 的 html:not(.is-manager) 等规则协同，保证导航隐藏/显示一致
   const root = document.documentElement;
   if (isManager) root.classList.add('is-manager');
   else root.classList.remove('is-manager');
+  if (isConductor) root.classList.add('is-conductor');
+  else root.classList.remove('is-conductor');
   // 文章管理/活动管理仅管理员可见（/events 重定向到 /articles）
   document.querySelectorAll('a[href="/articles"], a[href="/events"]').forEach(a => {
     a.style.display = isManager ? '' : 'none';
   });
+  // 排练记录仅学生指挥可见
+  document.querySelectorAll('a[href="/rehearsals"]').forEach(a => {
+    a.style.display = isConductor ? '' : 'none';
+  });
   // 非管理员访问文章/活动管理页：直接跳回首页（界面与标题都不显示）
   if (!isManager && /^\/(articles|events)(\/|$)/.test(location.pathname)) {
+    location.replace('/home');
+  }
+  // 非学生指挥访问排练记录页：直接跳回首页
+  if (!isConductor && /^\/rehearsals(\/|$)/.test(location.pathname)) {
     location.replace('/home');
   }
 }
@@ -57,6 +68,13 @@ function applyRoleUI() {
       document.documentElement.classList.add('is-manager');
     } else {
       document.querySelectorAll('a[href="/articles"], a[href="/events"]').forEach(a => {
+        a.style.display = 'none';
+      });
+    }
+    if (me.managerJob == 6) {
+      document.documentElement.classList.add('is-conductor');
+    } else {
+      document.querySelectorAll('a[href="/rehearsals"]').forEach(a => {
         a.style.display = 'none';
       });
     }
