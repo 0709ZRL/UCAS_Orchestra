@@ -20,6 +20,7 @@ const geocodeRouter = require('./routes/geocode');
 const roomsRouter = require('./routes/rooms');
 const reservationsRouter = require('./routes/reservations');
 const rehearsalsRouter = require('./routes/rehearsals');
+const instrumentsRouter = require('./routes/instruments');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,6 +44,8 @@ app.use('/cropper.min.css', express.static(path.join(__dirname, '../public/cropp
 app.use('/cropper.min.js', express.static(path.join(__dirname, '../public/cropper.min.js')));
 // 暴露上传目录用于 PDF 预览
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// 暴露乐器徽章图片目录（位于项目根，为 backend 的同级）
+app.use('/instruments', express.static(path.join(__dirname, '..', '..', 'instruments')));
 
 // 注入到 HTML <head> 的角色脚本：根据 localStorage 提前给 <html> 加 is-manager / is-conductor 类，
 // 配合 shared.css 的 html:not(.is-manager) 等规则在首次绘制前隐藏无权限导航（彻底防闪现）
@@ -122,6 +125,7 @@ app.use('/api/geocode', geocodeRouter);
 app.use('/api/rooms', roomsRouter);
 app.use('/api/reservations', reservationsRouter);
 app.use('/api/rehearsals', rehearsalsRouter);
+app.use('/api/instruments', instrumentsRouter);
 
 // 健康检查
 app.get('/api/health', (_req, res) => {

@@ -427,6 +427,37 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 
 ---
 
+### 4.15 乐器徽章 `/api/instruments`（公开，无需登录）
+
+> 目录 `backend/instruments/*.png`（项目根下的 `instruments/`）存放乐器徽章图片。用户上传乐器中文名时，返回对应徽章图片。公开接口，无需登录，适合小程序直接引用。
+
+**GET /api/instruments/badge?name=二胡** — 返回徽章图片（302 重定向到 `/instruments/<规范名>.png`，供 `<img src>` 直接引用）
+- 未匹配返回 `404`
+```json
+// 302 → Location: /instruments/%E8%83%A1%E7%90%B4.png
+```
+
+**GET /api/instruments/badge-info?name=二胡** — 返回映射信息 JSON（推荐小程序先查此接口判断是否匹配）
+```json
+{ "success":true, "matched":true, "input":"二胡", "badge":"胡琴",
+  "url":"/instruments/%E8%83%A1%E7%90%B4.png",
+  "fullUrl":"/api/instruments/badge?name=%E4%BA%8C%E8%83%A1" }
+```
+未匹配：`{ "success":false, "matched":false, "input":"未知", "message":"未找到乐器「未知」对应的徽章" }`
+
+**GET /api/instruments/list** — 全部可用规范徽章名列表 `{ success:true, data:["上低音号","中提琴",...] }`
+
+**名称映射规则：**
+1. `二胡 / 高胡 / 中胡 / 京胡 / 板胡` → `胡琴`
+2. `竹笛 / 曲笛 / 梆笛 / 洞箫 / 萧 / 箫 / 笛子 / 笛` → `笛箫`
+3. `大管 / 巴松` → `大管`
+4. `高音笙 / 中音笙 / 低音笙` → `笙`
+5. 其余名称若与 `instruments/` 目录中某图片同名则直接匹配（如 琵琶/古筝/钢琴/小提琴/唢呐…）；否则 404
+
+**静态图片地址：** `/instruments/<规范名>.png`（如 `/instruments/胡琴.png`），需对中文做 URL 编码。
+
+---
+
 ### 4.14 排练记录 `/api/rehearsals`（仅学生指挥 managerJob=6）
 
 > 权限：所有接口仅**学生指挥**（`managerJob=6`）可用；其他角色返回 403，未登录返回 401。支持 Cookie 与 `Authorization: Bearer <token>` 两种认证。
