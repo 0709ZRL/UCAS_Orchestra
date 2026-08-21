@@ -15,6 +15,22 @@ function getUser(req) {
 }
 
 /**
+ * 解析活动打卡地点坐标，兼容历史数据 "纬度,经度|地点名" 与纯坐标 "纬度,经度"。
+ * 返回 { lat, lng }；无法解析返回 null。
+ */
+function parseLocation(location) {
+  if (!location || !String(location).trim()) return null;
+  let str = String(location).trim();
+  // 剔除可能的历史后缀地点名（| 分隔，取 | 前的坐标部分）
+  if (str.includes('|')) str = str.split('|')[0];
+  // 兼容全角逗号
+  str = str.replace(/，/g, ',').trim();
+  const parts = str.split(',').map(s => parseFloat(s.trim()));
+  if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
+  return { lat: parts[0], lng: parts[1] };
+}
+
+/**
  * Haversine 公式计算两点间距离（米）
  */
 function haversineDistance(lat1, lng1, lat2, lng2) {
@@ -74,15 +90,15 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ success: false, message: '该活动未设置打卡地点，请联系管理员' });
     }
 
-    // 5. 验证地理位置距离
-    const [eventLat, eventLng] = ev.location.split(',').map(Number);
-    if (isNaN(eventLat) || isNaN(eventLng)) {
+    // 5. 验证地理位置距离（兼容 "纬度,经度|地点名" 的历史数据）
+    const parsedLoc = parseLocation(ev.location);
+    if (!parsedLoc) {
       return res.status(500).json({ success: false, message: '活动地点坐标格式错误' });
     }
 
     const distance = haversineDistance(
       parseFloat(userLat), parseFloat(userLng),
-      eventLat, eventLng
+      parsedLoc.lat, parsedLoc.lng
     );
 
     const MAX_DISTANCE = 10; // 10 米
