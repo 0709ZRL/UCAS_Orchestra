@@ -8,6 +8,20 @@ const { loadUser, requireManager } = require('../middleware/auth');
 // 载入当前用户（req.user），供 requireManager 判断
 router.use(loadUser);
 
+/**
+ * 将前端传入的时间字符串规范化为「服务器本地时间（Asia/Shanghai，UTC+8）」的 'YYYY-MM-DD HH:mm:ss'。
+ * 兼容多种输入格式：无时区 'YYYY-MM-DDTHH:mm:ss'、带偏移 'YYYY-MM-DDTHH:mm:ss+08:00'、UTC 'YYYY-MM-DDTHH:mm:ssZ' 等，
+ * 全部统一解析为北京时间，避免客户端/服务器时区差异导致存储偏移。
+ * 空值返回 null；非法时间字符串返回 null。
+ */
+function toLocalDatetime(value) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return null;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 const ARTICLE_UPLOAD_DIR = path.join(__dirname, '../../uploads/articles');
 
 // multer 配置 — 文章图片上传（仅图片）
@@ -110,11 +124,18 @@ router.post('/', requireManager, async (req, res, next) => {
   try {
     const { type, title, content, images, attachments, startTime, endTime, location } = req.body;
     if (!title) return res.status(400).json({ success: false, message: '标题为必填项' });
+    // 统一规范化起止时间（兼容无时区/+08:00/UTC，存为北京时间）
+    const st = toLocalDatetime(startTime);
+    const et = toLocalDatetime(endTime);
+    if ((startTime !== undefined && startTime !== '' && startTime !== null && !st) ||
+        (endTime !== undefined && endTime !== '' && endTime !== null && !et)) {
+      return res.status(400).json({ success: false, message: '时间格式不正确' });
+    }
     const imgStr = images ? (Array.isArray(images) ? images.join(',') : images) : null;
     const attStr = attachments ? (typeof attachments === 'string' ? attachments : JSON.stringify(attachments)) : null;
     const [result] = await pool.query(
       'INSERT INTO articles (type, title, content, images, attachments, startTime, endTime, location) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [type !== undefined ? parseInt(type) : 0, title, content || null, imgStr, attStr, startTime || null, endTime || null, location || null]
+      [type !== undefined ? parseInt(type) : 0, title, content || null, imgStr, attStr, st, et, location || null]
     );
     res.status(201).json({ success: true, message: '已添加', articleId: result.insertId });
   } catch (err) { next(err); }
@@ -124,10 +145,21 @@ router.post('/', requireManager, async (req, res, next) => {
 router.put('/:id', requireManager, async (req, res, next) => {
   try {
     const fields = ['type', 'title', 'content', 'images', 'attachments', 'startTime', 'endTime', 'location'];
-    const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
+    const provided = fields.filter(f => req.body[f] !== undefined);
+    const sets = provided.map(f => `${f} = ?`);
     if (!sets.length) return res.status(400).json({ success: false, message: '无更新字段' });
-    const values = fields.filter(f => req.body[f] !== undefined).map(f => {
+    const values = provided.map(f => {
       const v = req.body[f];
+      // 起止时间统一规范化（兼容无时区/+08:00/UTC，存为北京时间）
+      if (f === 'startTime' || f === 'endTime') {
+        const t = toLocalDatetime(v);
+        if (v !== '' && v !== null && !t) {
+          const err = new Error('时间格式不正确');
+          err.status = 400;
+          throw err;
+        }
+        return t;
+      }
       if (f === 'images') return Array.isArray(v) ? v.join(',') : v;
       if (f === 'attachments') return typeof v === 'string' ? v : JSON.stringify(v);
       return v;

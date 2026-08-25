@@ -266,6 +266,8 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 ```
 `type=0/1` 为活动（可设起止时间与打卡地点），`type=2` 为新闻。
 
+> **时间（startTime/endTime）时区约定**：后端会统一把传入时间规范化为「北京时间（Asia/Shanghai, UTC+8）」存储。兼容多种输入格式：无时区 `2026-08-01T19:00` / `2026-08-01T19:00:00`、带偏移 `2026-08-01T19:00:00+08:00`、UTC `2026-08-01T11:00:00.000Z`（会自动 +8 转成北京 19:00）。非法时间返回 `400 时间格式不正确`。无论小程序发送哪种格式，都能正确对齐用户设置的北京时间。
+
 **PUT /api/articles/:id** — 更新（管理员）
 **DELETE /api/articles/:id** — 删除（管理员）
 **POST /api/articles/upload-image** — 上传图片（multipart，字段 `image`，≤10MB），返回 `{url}`
