@@ -204,30 +204,36 @@ router.post('/upload', requirePrivileged, (req, res, next) => {
         }
       }
 
-      // 逐文件入库（哈希去重；同一批多文件标题相同时自动追加序号，避开唯一索引 title+isTotal+section）
+      // 逐文件入库：允许重复内容上传——内容哈希已在库中/本批已用时，存储标识与标题都自动追加序号区分
       const created = [];
       const errors = [];
       const isTotalVal = isTotal !== undefined ? parseInt(isTotal) : 0;
       const usedTitles = new Set();
+      const usedHashes = new Set(); // 本批已用的存储标识
       for (const file of files) {
         try {
-          const filehash = await computeHash(file.path);
-          const [exist] = await pool.query('SELECT scoreId FROM scores WHERE filehash = ?', [filehash]);
-          if (exist.length) {
-            fs.unlinkSync(file.path);
-            errors.push(`${file.originalname}：该文件已存在（哈希重复）`);
-            continue;
-          }
+          const sha = await computeHash(file.path);
+          // 生成唯一存储标识：内容哈希已在库中或本批已用 → 追加序号（避开 UNQ_Scores_Filehash）
+          let storageKey = sha;
+          let seq = 2;
+          const hashExists = async (k) => {
+            if (usedHashes.has(k)) return true;
+            const [r] = await pool.query('SELECT scoreId FROM scores WHERE filehash = ? LIMIT 1', [k]);
+            return r.length > 0;
+          };
+          while (await hashExists(storageKey)) storageKey = `${sha}_${seq++}`;
+          usedHashes.add(storageKey);
+
           // 乐谱名 = 显式 title 或文件名（去扩展名）；标题唯一化避免与库中及批内其他文件冲突
           const baseTitle = (title && String(title).trim()) ? String(title).trim() : cleanFileName(file.originalname);
           const finalTitle = await uniqueScoreTitle(baseTitle, isTotalVal, secStr, usedTitles);
-          const newPath = path.join(UPLOAD_DIR, filehash + '.pdf');
+          const newPath = path.join(UPLOAD_DIR, storageKey + '.pdf');
           fs.renameSync(file.path, newPath);
           await pool.query(
             'INSERT INTO scores (title, isTotal, section, filehash) VALUES (?, ?, ?, ?)',
-            [finalTitle, isTotalVal, secStr, filehash]
+            [finalTitle, isTotalVal, secStr, storageKey]
           );
-          created.push(`${file.originalname} → “${finalTitle}”`);
+          created.push(`${file.originalname}${storageKey !== sha ? '（重复内容，已区分）' : ''} → “${finalTitle}”`);
         } catch (fe) {
           if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
           errors.push(`${file.originalname}：${fe.code === 'ER_DUP_ENTRY' ? '相同乐谱已存在' : '保存失败'}`);
