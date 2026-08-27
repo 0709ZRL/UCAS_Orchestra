@@ -92,7 +92,7 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 | section | TINYINT | 0=民族管乐 1=弹拨一组 2=弹拨二组 3=胡琴 4=提琴 5=西洋木管 6=西洋铜管 7=低音 8=钢琴 9=打击 10=无声部 |
 | job | TINYINT | 0=普通成员 1=声部长 |
 | isManager | TINYINT | 0=否 1=是（管理员） |
-| managerJob | TINYINT | 0=普通干事 1=团长 2=业务副团长 3=人事副团长 4=后勤组长 5=宣传组长 6=学生指挥 7=指挥助理 8=指挥 |
+| managerJob | TINYINT | 0=普通干事 1=团长 2=业务副团长 3=人事副团长 4=后勤组长 5=宣传组长 6=学生指挥 7=指挥助理 8=指挥 9=谱务 |
 | instrument | VARCHAR(256) | 乐器（分号分隔） |
 | isMaster | TINYINT | 0=否 1=声部首席 |
 | avatarhash | VARCHAR(255) | 头像文件 SHA256 |

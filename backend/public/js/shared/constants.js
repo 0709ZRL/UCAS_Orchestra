@@ -10,7 +10,7 @@ const fields = {
     { key:'section', label:'声部', type:'select', options:[{v:0,t:'民族管乐声部'},{v:1,t:'弹拨一组'},{v:2,t:'弹拨二组'},{v:3,t:'胡琴声部'},{v:4,t:'提琴声部'},{v:5,t:'西洋木管声部'},{v:6,t:'西洋铜管声部'},{v:7,t:'低音声部'},{v:8,t:'钢琴声部'},{v:9,t:'打击声部'},{v:10,t:'无声部'}], default:0 },
     { key:'job', label:'职位', type:'select', options:[{v:0,t:'普通成员'},{v:1,t:'声部长'}], default:0 },
     { key:'isManager', label:'是否管理人员', type:'select', options:[{v:0,t:'否'},{v:1,t:'是'}], default:0 },
-    { key:'managerJob', label:'管理职责', type:'select', options:[{v:0,t:'普通干事'},{v:1,t:'团长'},{v:2,t:'业务副团长'},{v:3,t:'人事副团长'},{v:4,t:'后勤组组长'},{v:5,t:'宣传组组长'},{v:6,t:'学生指挥'},{v:7,t:'指挥助理'},{v:8,t:'指挥'}], default:0 },
+    { key:'managerJob', label:'管理职责', type:'select', options:[{v:0,t:'普通干事'},{v:1,t:'团长'},{v:2,t:'业务副团长'},{v:3,t:'人事副团长'},{v:4,t:'后勤组组长'},{v:5,t:'宣传组组长'},{v:6,t:'学生指挥'},{v:7,t:'指挥助理'},{v:8,t:'指挥'},{v:9,t:'谱务'}], default:0 },
     { key:'instrument', label:'乐器（多个用分号分隔）' },
     { key:'isMaster', label:'声部首席', type:'select', options:[{v:0,t:'否'},{v:1,t:'是'}], default:0 }
   ],
@@ -59,7 +59,7 @@ const PROFILE_MAP = {
   job:{0:'普通成员',1:'声部长'},
   isManager:{0:'否',1:'是'},
   isMaster:{0:'否',1:'是'},
-  managerJob:{0:'普通干事',1:'团长',2:'业务副团长',3:'人事副团长',4:'后勤组长',5:'宣传组长',6:'学生指挥',7:'指挥助理',8:'指挥'}
+  managerJob:{0:'普通干事',1:'团长',2:'业务副团长',3:'人事副团长',4:'后勤组长',5:'宣传组长',6:'学生指挥',7:'指挥助理',8:'指挥',9:'谱务'}
 };
 
 // 文章类型

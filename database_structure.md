@@ -38,7 +38,7 @@
 | `section` | `tinyint` | NO | — | `0` | 声部（0=民族管乐，1=弹拨一组，2=弹拨二组，3=胡琴，4=提琴，5=西洋木管，6=西洋铜管，7=低音，8=钢琴，9=打击，10=无声部） |
 | `job` | `tinyint` | NO | — | `0` | 职位（0=普通成员，1=声部长） |
 | `isManager` | `tinyint(1)` | NO | — | `0` | 是否管理人员（0=否，1=是） |
-| `managerJob` | `tinyint` | NO | — | `0` | 管理职责（0=普通干事，1=团长，2=业务副团长，3=人事副团长，4=后勤组组长，5=宣传组组长，6=学生指挥，7=指挥助理，8=指挥） |
+| `managerJob` | `tinyint` | NO | — | `0` | 管理职责（0=普通干事，1=团长，2=业务副团长，3=人事副团长，4=后勤组组长，5=宣传组组长，6=学生指挥，7=指挥助理，8=指挥，9=谱务） |
 | `instrument` | `varchar(256)` | YES | — | `NULL` | 乐器/工具，多个用分号分隔 |
 | `isMaster` | `tinyint(1)` | NO | — | `0` | 声部首席（0=否，1=是） |
 | `avatarhash` | `varchar(255)` | YES | — | `NULL` | 头像文件 SHA256 哈希 |
@@ -62,7 +62,7 @@ CREATE TABLE `persons` (
   `section` tinyint NOT NULL DEFAULT '0' COMMENT '0=民族管乐 1=弹拨一组 2=弹拨二组 3=胡琴 4=提琴 5=西洋木管 6=西洋铜管 7=低音 8=钢琴 9=打击 10=无声部',
   `job` tinyint NOT NULL DEFAULT '0' COMMENT '0=普通成员 1=声部长',
   `isManager` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0=否 1=是',
-  `managerJob` tinyint NOT NULL DEFAULT '0' COMMENT '0=普通干事 1=团长 2=业务副团长 3=人事副团长 4=后勤组长 5=宣传组长 6=学生指挥 7=指挥助理 8=指挥',
+  `managerJob` tinyint NOT NULL DEFAULT '0' COMMENT '0=普通干事 1=团长 2=业务副团长 3=人事副团长 4=后勤组长 5=宣传组长 6=学生指挥 7=指挥助理 8=指挥 9=谱务',
   `instrument` varchar(256) DEFAULT NULL COMMENT '多个乐器用分号分隔',
   `isMaster` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0=否 1=是（声部首席）',
   `avatarhash` varchar(255) DEFAULT NULL COMMENT '头像图片SHA256哈希',
