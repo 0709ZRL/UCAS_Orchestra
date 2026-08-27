@@ -203,20 +203,22 @@ CREATE TABLE `attendance` (
 ### 5. `scores` — 乐谱信息
 
 > 用户通过上传 PDF 文件添加乐谱，后端自动计算 SHA256 哈希存入 `filehash` 字段，原始文件以哈希值命名存储在 `uploads/scores/` 目录下。  
-> 前端支持在线预览 PDF 和下载。
+> 前端支持在线预览 PDF、**一次多文件上传**、按乐谱名+声部联合搜索、以及将搜索到的乐谱**打包下载为 zip**。
 
 | 字段 | 类型 | 空 | 键 | 默认值 | 说明 |
 |------|------|----|----|--------|------|
 | `scoreId` | `int unsigned` | NO | **PRI** | — | 自增主键 |
 | `title` | `varchar(200)` | NO | **MUL** | — | 乐谱名 |
 | `isTotal` | `tinyint(1)` | NO | — | `0` | 是否为总谱（1=是，0=否） |
-| `section` | `varchar(64)` | NO | — | `''` | 所属声部（分谱使用） |
+| `section` | `varchar(64)` | NO | — | `''` | 所属声部（分谱使用，**逗号分隔可多声部**，如 `胡琴声部,提琴声部`） |
 | `filehash` | `varchar(255)` | NO | **UNI** | — | 文件 SHA256 哈希（后端自动计算） |
 
 **索引：**
 - 主键：`scoreId`
 - 唯一键：`UNQ_Scores_Filehash`（`filehash`）
 - 唯一键：`UNQ_Scores_Title_Type_Section`（`title`, `isTotal`, `section`）— 同一名称、同类型、同声部不重复
+
+> **一致性规则（后端强制）**：总谱（`isTotal=1`）时 `section` 恒为 `''`，分谱可多声部；杜绝“既是总谱又有声部”。
 
 **DDL：**
 ```sql

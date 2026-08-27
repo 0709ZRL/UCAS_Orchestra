@@ -1,8 +1,238 @@
+// ===== 乐谱管理（自定义页面）=====
+// 支持：一次多文件上传、分谱多声部、总谱强制无声部、按乐谱名+声部联合搜索、打包下载
+
+const SCORE_SECTIONS = ['民族管乐声部','弹拨一组','弹拨二组','胡琴声部','提琴声部','西洋木管声部','西洋铜管声部','低音声部','钢琴声部','打击声部','无声部'];
+
+let _scoreFilters = { title: '', section: '', isTotal: '', page: 1 };
+const _scoreLimit = 20;
+
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelector('.main')?.addEventListener('click', function() {
     if (window.innerWidth <= 900) document.querySelector('.sidebar')?.classList.remove('open');
   });
   checkAuth().then(ok => {
-    if (ok) loadPage('scores');
+    if (ok) loadScores();
   });
 });
+
+// 加载乐谱列表（读取搜索框当前值，联合搜索）
+async function loadScores() {
+  const el = document.getElementById('page-scores');
+  const t = document.getElementById('sf-scores-title');
+  const s = document.getElementById('sf-scores-section');
+  const it = document.getElementById('sf-scores-isTotal');
+  if (t) _scoreFilters.title = t.value;
+  if (s) _scoreFilters.section = s.value;
+  if (it) _scoreFilters.isTotal = it.value;
+
+  const q = {};
+  if (_scoreFilters.title) q.title = _scoreFilters.title;
+  if (_scoreFilters.section) q.section = _scoreFilters.section;
+  if (_scoreFilters.isTotal) q.isTotal = _scoreFilters.isTotal;
+  q.page = _scoreFilters.page;
+  q.limit = _scoreLimit;
+  const qs = Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
+
+  const res = await api('/scores?' + qs);
+  if (!res.success) { el.innerHTML = '<p>加载失败</p>'; return; }
+
+  let html = buildScoresToolbar();
+  html += '<div class="table-wrap">' + buildScoresTable(res.data || []) + '</div>';
+  html += buildScoresPagination(res.total, res.limit);
+  el.innerHTML = html;
+}
+
+function buildScoresToolbar() {
+  const secOptions = SCORE_SECTIONS.map(s => `<option value="${s}" ${_scoreFilters.section === s ? 'selected' : ''}>${s}</option>`).join('');
+  let html = `<div class="toolbar">
+    <input id="sf-scores-title" placeholder="乐谱名" value="${escHtml(_scoreFilters.title)}" onkeydown="if(event.key==='Enter')scoreSearch()">
+    <select id="sf-scores-section" onchange="scoreSearch()"><option value="">声部</option>${secOptions}</select>
+    <select id="sf-scores-isTotal" onchange="scoreSearch()"><option value="">类型</option><option value="0" ${_scoreFilters.isTotal === '0' ? 'selected' : ''}>分谱</option><option value="1" ${_scoreFilters.isTotal === '1' ? 'selected' : ''}>总谱</option></select>
+    <button onclick="scoreSearch()">🔍 搜索</button>
+    <button class="btn-download" onclick="exportScores()">📦 打包下载</button>`;
+  if (canAdd('scores')) html += `<button class="btn-green" onclick="showScoreForm()">＋ 新增</button>`;
+  html += '</div>';
+  return html;
+}
+
+// 搜索：重置到第 1 页
+function scoreSearch() {
+  _scoreFilters.page = 1;
+  loadScores();
+}
+
+function buildScoresTable(list) {
+  if (!list.length) return '<p style="padding:20px;text-align:center;color:#999">暂无乐谱</p>';
+  let html = '<table><tr><th>ID</th><th>乐谱名</th><th>类型</th><th>声部</th><th>PDF</th><th>操作</th></tr>';
+  list.forEach(r => {
+    const canOp = canOperateRow('scores', r);
+    const sec = r.isTotal == 1 ? '—' : String(r.section || '').split(',').filter(Boolean).join('、');
+    html += `<tr>
+      <td>${r.scoreId}</td>
+      <td>${escHtml(r.title)}</td>
+      <td>${r.isTotal == 1 ? '总谱' : '分谱'}</td>
+      <td>${sec}</td>
+      <td>${r.filehash ? `<a href="/api/scores/${r.scoreId}/file" target="_blank" class="btn" style="padding:2px 10px;font-size:12px;background:#1890ff">📄 预览</a>` : '<span style="color:#999">无文件</span>'}</td>
+      <td class="actions">
+        ${canOp ? `<button class="btn-edit" onclick="showScoreForm(${r.scoreId})">编辑</button>` : ''}
+        ${canOp ? `<button class="btn-del" onclick="delScore(${r.scoreId})">删除</button>` : ''}
+      </td></tr>`;
+  });
+  html += '</table>';
+  return html;
+}
+
+function buildScoresPagination(total, limit) {
+  const totalPages = Math.ceil(total / limit) || 1;
+  const p = _scoreFilters.page;
+  return `<div class="pagination"><span>共 ${total} 条</span>
+    <div><button onclick="scorePage(${p - 1})" ${p <= 1 ? 'disabled' : ''}>上一页</button>
+    <span style="margin:0 12px">${p}/${totalPages}</span>
+    <button onclick="scorePage(${p + 1})" ${p >= totalPages ? 'disabled' : ''}>下一页</button></div></div>`;
+}
+
+function scorePage(p) {
+  _scoreFilters.page = p;
+  loadScores();
+}
+
+// 打包下载：按当前搜索条件下载 zip
+function exportScores() {
+  const t = document.getElementById('sf-scores-title');
+  const s = document.getElementById('sf-scores-section');
+  const it = document.getElementById('sf-scores-isTotal');
+  const title = t ? t.value : _scoreFilters.title;
+  const section = s ? s.value : _scoreFilters.section;
+  const isTotal = it ? it.value : _scoreFilters.isTotal;
+  const q = [];
+  if (title) q.push('title=' + encodeURIComponent(title));
+  if (section) q.push('section=' + encodeURIComponent(section));
+  if (isTotal) q.push('isTotal=' + isTotal);
+  const url = '/api/scores/export?' + q.join('&');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+// 新增/编辑表单
+async function showScoreForm(id) {
+  const isEdit = !!id;
+  let data = null;
+  if (isEdit) {
+    const res = await api('/scores/' + id);
+    if (!res.success) { showToast('加载失败', 'error'); return; }
+    data = res.data;
+  }
+  const r = meRole();
+  const sectionLeader = r.isSectionLeader && !r.isManager;
+
+  const isTotalVal = data ? data.isTotal : 0;
+  const secList = data ? String(data.section || '').split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const secCheckboxes = SCORE_SECTIONS.map(s =>
+    `<label style="display:inline-flex;align-items:center;gap:4px;margin:4px 10px 4px 0;font-size:13px">
+      <input type="checkbox" class="sec-chk" value="${s}" ${secList.includes(s) ? 'checked' : ''}>${s}</label>`
+  ).join('');
+
+  let html = `<h2>${isEdit ? '编辑' : '新增'}乐谱</h2><form id="form">
+    <div class="form-group"><label>乐谱名 *</label><input id="f-title" type="text" value="${escHtml(data ? data.title : '')}" required></div>
+    <div class="form-group"><label>类型 *</label>
+      <select id="f-isTotal" onchange="toggleScoreSectionUI()">
+        <option value="0" ${String(isTotalVal) === '0' ? 'selected' : ''}>分谱</option>
+        <option value="1" ${String(isTotalVal) === '1' ? 'selected' : ''}>总谱</option>
+      </select>
+    </div>
+    <div class="form-group" id="fg-score-section"><label>所属声部（可多选）</label><div>${secCheckboxes}</div>
+      <div style="font-size:12px;color:#888;margin-top:2px">分谱可选多个声部；总谱不可选声部</div></div>`;
+
+  if (!isEdit) {
+    html += `<div class="form-group"><label>PDF 文件（可多选） *</label><input id="f-files" type="file" accept=".pdf" multiple required>
+      <div style="font-size:12px;color:#888;margin-top:2px">可一次选择多个 PDF，每个文件生成一条乐谱记录</div></div>`;
+  } else {
+    html += `<div class="form-group"><label>替换 PDF 文件（可选，不选则保留原文件）</label><input id="f-files" type="file" accept=".pdf"></div>`;
+  }
+
+  html += `</form><div class="form-actions">
+    <button class="btn-cancel" onclick="closeModal()">取消</button>
+    <button class="btn-green" onclick="submitScore(${isEdit ? id : ''})">${isEdit ? '保存' : '创建'}</button>
+  </div>`;
+  openModal(html);
+  toggleScoreSectionUI();
+
+  // 声部长新增：锁定为分谱 + 本声部
+  if (!isEdit && sectionLeader) {
+    const totalSel = document.getElementById('f-isTotal');
+    if (totalSel) { totalSel.value = '0'; totalSel.disabled = true; }
+    const mySec = scoreSectionName(r.section);
+    document.querySelectorAll('.sec-chk').forEach(c => {
+      if (c.value !== mySec) { c.checked = false; c.disabled = true; }
+      else c.checked = true;
+    });
+    toggleScoreSectionUI();
+  }
+}
+
+// 总谱时隐藏声部选择（修复“总谱带声部”bug 的界面侧）
+function toggleScoreSectionUI() {
+  const t = document.getElementById('f-isTotal');
+  const row = document.getElementById('fg-score-section');
+  if (t && row) row.style.display = t.value === '1' ? 'none' : '';
+}
+
+// 提交（新增：多文件上传；编辑：元信息 + 可选替换文件）
+async function submitScore(id) {
+  if (window._submitting) return;
+  const title = document.getElementById('f-title').value.trim();
+  const isTotal = document.getElementById('f-isTotal').value;
+  const secs = Array.from(document.querySelectorAll('.sec-chk:checked')).map(c => c.value);
+  const fileEl = document.getElementById('f-files');
+  const files = fileEl.files;
+  const isEdit = !!id;
+
+  if (!title) { showToast('请填写乐谱名', 'error'); return; }
+
+  if (!isEdit) {
+    if (!files || files.length === 0) { showToast('请选择至少一个 PDF 文件', 'error'); return; }
+    window._submitting = true;
+    const fd = new FormData();
+    for (const f of files) fd.append('files', f);
+    fd.append('title', title);
+    fd.append('isTotal', isTotal);
+    // 总谱强制无声部；分谱提交多声部
+    if (isTotal === '0') secs.forEach(s => fd.append('sections', s));
+    const res = await fetch('/api/scores/upload', { method: 'POST', body: fd }).then(r => r.json());
+    window._submitting = false;
+    if (res.success) { showToast(res.message); closeModal(); loadScores(); }
+    else showToast(res.message, 'error');
+    return;
+  }
+
+  // 编辑：先更新元信息，再可选替换文件
+  window._submitting = true;
+  const body = { title, isTotal: parseInt(isTotal) };
+  body.section = isTotal === '1' ? '' : secs.join(','); // 总谱强制无声部
+  const res = await api('/scores/' + id, { method: 'PUT', body: JSON.stringify(body) });
+  if (!res.success) { showToast(res.message, 'error'); window._submitting = false; return; }
+  if (files && files.length > 0) {
+    const fd = new FormData();
+    fd.append('file', files[0]);
+    const fres = await fetch('/api/scores/' + id + '/file', { method: 'PUT', body: fd }).then(r => r.json());
+    if (!fres.success) { showToast(fres.message, 'error'); window._submitting = false; return; }
+  }
+  window._submitting = false;
+  showToast('已更新');
+  closeModal();
+  loadScores();
+}
+
+// 删除
+async function delScore(id) {
+  if (!confirm('确认删除该乐谱？')) return;
+  const res = await api('/scores/' + id, { method: 'DELETE' });
+  if (res.success) { showToast('已删除'); loadScores(); }
+  else showToast(res.message, 'error');
+}
+

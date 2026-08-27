@@ -315,17 +315,27 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 
 ### 4.5 乐谱 `/api/scores`
 
-**GET /api/scores** — 列表
-参数：`title` `section` `isTotal` `page` `limit`(默认50)
+> **数据规则**：`section` 为逗号分隔的多声部字符串（如 `"胡琴声部,提琴声部"`）；**总谱（isTotal=1）强制无声部**（section 恒为空），分谱可多选声部——后端会在写入时强制保证，杜绝“既是总谱又有声部”。
+
+**GET /api/scores** — 列表（支持 乐谱名 + 声部 联合搜索）
+参数：`title`(模糊) `section`(精确匹配多声部中的任一声部，FIND_IN_SET) `isTotal` `page` `limit`(默认50)
+
+**GET /api/scores/export** — 将**当前搜索条件下**的所有乐谱打包下载为 zip
+参数：`title` `section` `isTotal`（与列表一致）；返回 `application/zip`；无匹配文件返回 404。
+zip 内文件命名：`乐谱名-声部.pdf`（总谱无声部后缀；重名自动追加序号）。
 
 **GET /api/scores/:scoreId** — 详情
 **GET /api/scores/:scoreId/file** — 下载 PDF（inline 预览）
 
-**POST /api/scores/upload** — 上传（multipart：`file`(PDF≤50MB) `title` `isTotal` `section`）
-权限：管理员任意；声部长仅本声部分谱；普通成员 403。
+**POST /api/scores/upload** — 上传（multipart，**支持一次多文件**）
+字段：`files`(多个 PDF，单个≤50MB，一次≤20个) `title` `isTotal` `sections`(多选，可重复字段；也兼容 `section` 逗号分隔)
+- 每个文件生成一条乐谱记录；同批同标题时自动追加 `(n)` 序号（避开唯一索引 title+isTotal+section）
+- 总谱强制无声部；分谱可多声部
+- 权限：管理员任意；声部长仅本声部分谱（且只能选本声部）；普通成员 403
+- 成功返回 `{createdCount, errors[]}`（哈希重复的文件单独列出失败，不影响其他文件）
 
-**PUT /api/scores/:scoreId/file** — 替换 PDF（multipart，同上）
-**PUT /api/scores/:scoreId** — 更新元信息 `{title,isTotal,section}`
+**PUT /api/scores/:scoreId/file** — 替换 PDF（multipart：`file`，可选同带 `title/isTotal/section`）
+**PUT /api/scores/:scoreId** — 更新元信息 `{title,isTotal,section}`（isTotal=1 时 section 强制清空）
 **DELETE /api/scores/:scoreId** — 删除（同步删除文件）
 
 ---

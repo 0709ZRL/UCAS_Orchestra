@@ -90,7 +90,11 @@ function canOperateRow(page, row) {
     return Number(row.section) === Number(r.section);
   }
   if (page === 'scores') {
-    return Number(row.isTotal) === 0 && String(row.section) === scoreSectionName(r.section);
+    // 声部长仅可操作本声部分谱；乐谱可属多声部（逗号分隔），本声部在其中即可
+    if (Number(row.isTotal) === 1) return false;
+    const mySection = scoreSectionName(r.section);
+    const secs = String(row.section || '').split(',').map(s => s.trim()).filter(Boolean);
+    return secs.includes(mySection);
   }
   return false;
 }

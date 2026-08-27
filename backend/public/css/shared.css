@@ -287,3 +287,7 @@ html:not(.is-conductor) a[href="/rehearsals"]{display:none!important}
 .rehearsal-content{font-size:14px;color:#444;line-height:1.7;white-space:pre-line;background:#fafafa;border-radius:8px;padding:12px 14px;margin-bottom:10px}
 .rehearsal-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .rehearsal-meta{font-size:12px;color:#999}
+
+/* ===== 乐谱打包下载按钮 ===== */
+.btn-download{background:linear-gradient(135deg,#fa8c16,#d46b08);box-shadow:0 2px 6px rgba(250,140,22,.3)}
+.btn-download:hover{box-shadow:0 4px 12px rgba(250,140,22,.4)}
