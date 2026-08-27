@@ -117,9 +117,14 @@ function exportScores() {
   a.remove();
 }
 
+// 待上传文件列表（新增时支持增删特定文件 / 文件夹）
+let _pendingFiles = []; // [{ id, file }]
+let _pendingId = 0;
+
 // 新增/编辑表单
 async function showScoreForm(id) {
   const isEdit = !!id;
+  _pendingFiles = [];
   let data = null;
   if (isEdit) {
     const res = await api('/scores/' + id);
@@ -133,26 +138,33 @@ async function showScoreForm(id) {
   const secList = data ? String(data.section || '').split(',').map(s => s.trim()).filter(Boolean) : [];
 
   const secCheckboxes = SCORE_SECTIONS.map(s =>
-    `<label style="display:inline-flex;align-items:center;gap:4px;margin:4px 10px 4px 0;font-size:13px">
-      <input type="checkbox" class="sec-chk" value="${s}" ${secList.includes(s) ? 'checked' : ''}>${s}</label>`
+    `<label><input type="checkbox" class="sec-chk" value="${s}" ${secList.includes(s) ? 'checked' : ''}>${s}</label>`
   ).join('');
 
   let html = `<h2>${isEdit ? '编辑' : '新增'}乐谱</h2><form id="form">
-    <div class="form-group"><label>乐谱名 *</label><input id="f-title" type="text" value="${escHtml(data ? data.title : '')}" required></div>
     <div class="form-group"><label>类型 *</label>
       <select id="f-isTotal" onchange="toggleScoreSectionUI()">
         <option value="0" ${String(isTotalVal) === '0' ? 'selected' : ''}>分谱</option>
         <option value="1" ${String(isTotalVal) === '1' ? 'selected' : ''}>总谱</option>
       </select>
     </div>
-    <div class="form-group" id="fg-score-section"><label>所属声部（可多选）</label><div>${secCheckboxes}</div>
+    <div class="form-group" id="fg-score-section"><label>所属声部（可多选）</label>
+      <div class="sec-list">${secCheckboxes}</div>
       <div style="font-size:12px;color:#888;margin-top:2px">分谱可选多个声部；总谱不可选声部</div></div>`;
 
   if (!isEdit) {
-    html += `<div class="form-group"><label>PDF 文件（可多选） *</label><input id="f-files" type="file" accept=".pdf" multiple required>
-      <div style="font-size:12px;color:#888;margin-top:2px">可一次选择多个 PDF，每个文件生成一条乐谱记录</div></div>`;
+    html += `<div class="form-group"><label>PDF 文件 *（文件名将作为乐谱名）</label>
+      <div class="score-file-actions">
+        <button type="button" class="btn" onclick="document.getElementById('f-files').click()">📁 选择文件</button>
+        <button type="button" class="btn" onclick="document.getElementById('f-dir').click()">📂 选择文件夹</button>
+        <input type="file" id="f-files" accept=".pdf" multiple style="display:none" onchange="addScoreFiles(this)">
+        <input type="file" id="f-dir" webkitdirectory multiple style="display:none" onchange="addScoreDir(this)">
+      </div>
+      <div id="score-file-list" style="margin-top:8px"></div>
+      <div style="font-size:12px;color:#888;margin-top:4px">可多次添加、也可删除列表中特定文件；选文件夹会上传其中及子目录的所有 PDF</div></div>`;
   } else {
-    html += `<div class="form-group"><label>替换 PDF 文件（可选，不选则保留原文件）</label><input id="f-files" type="file" accept=".pdf"></div>`;
+    html += `<div class="form-group"><label>乐谱名</label><input id="f-title" type="text" value="${escHtml(data ? data.title : '')}"></div>
+      <div class="form-group"><label>替换 PDF 文件（可选，不选则保留原文件）</label><input id="f-files" type="file" accept=".pdf"></div>`;
   }
 
   html += `</form><div class="form-actions">
@@ -161,6 +173,7 @@ async function showScoreForm(id) {
   </div>`;
   openModal(html);
   toggleScoreSectionUI();
+  if (!isEdit) renderScoreFileList();
 
   // 声部长新增：锁定为分谱 + 本声部
   if (!isEdit && sectionLeader) {
@@ -175,6 +188,48 @@ async function showScoreForm(id) {
   }
 }
 
+// 添加文件到待上传列表
+function addScoreFiles(input) {
+  if (!input || !input.files) return;
+  for (const f of input.files) _pendingFiles.push({ id: ++_pendingId, file: f });
+  renderScoreFileList();
+  input.value = '';
+}
+
+// 添加文件夹（含子目录）中的 PDF
+function addScoreDir(input) {
+  if (!input || !input.files) return;
+  let added = 0;
+  for (const f of input.files) {
+    if (!/\.pdf$/i.test(f.name || '')) continue; // 仅 PDF
+    _pendingFiles.push({ id: ++_pendingId, file: f });
+    added++;
+  }
+  if (added === 0) showToast('所选目录中没有 PDF 文件', 'error');
+  renderScoreFileList();
+  input.value = '';
+}
+
+// 删除待上传列表中的特定文件
+function removeScoreFile(id) {
+  _pendingFiles = _pendingFiles.filter(x => x.id !== id);
+  renderScoreFileList();
+}
+
+function renderScoreFileList() {
+  const el = document.getElementById('score-file-list');
+  if (!el) return;
+  if (!_pendingFiles.length) {
+    el.innerHTML = '<div style="font-size:13px;color:#999">尚未选择文件</div>';
+    return;
+  }
+  el.innerHTML = _pendingFiles.map(x => {
+    const display = x.file.webkitRelativePath || x.file.name;
+    return `<div class="score-file-item"><span title="${escHtml(display)}">${escHtml(display)}</span>
+      <button type="button" class="btn-del" onclick="removeScoreFile(${x.id})">✕</button></div>`;
+  }).join('');
+}
+
 // 总谱时隐藏声部选择（修复“总谱带声部”bug 的界面侧）
 function toggleScoreSectionUI() {
   const t = document.getElementById('f-isTotal');
@@ -182,24 +237,18 @@ function toggleScoreSectionUI() {
   if (t && row) row.style.display = t.value === '1' ? 'none' : '';
 }
 
-// 提交（新增：多文件上传；编辑：元信息 + 可选替换文件）
+// 提交（新增：文件列表多文件上传，乐谱名=文件名；编辑：可选改名 + 可选替换文件）
 async function submitScore(id) {
   if (window._submitting) return;
-  const title = document.getElementById('f-title').value.trim();
   const isTotal = document.getElementById('f-isTotal').value;
   const secs = Array.from(document.querySelectorAll('.sec-chk:checked')).map(c => c.value);
-  const fileEl = document.getElementById('f-files');
-  const files = fileEl.files;
   const isEdit = !!id;
 
-  if (!title) { showToast('请填写乐谱名', 'error'); return; }
-
   if (!isEdit) {
-    if (!files || files.length === 0) { showToast('请选择至少一个 PDF 文件', 'error'); return; }
+    if (!_pendingFiles.length) { showToast('请选择至少一个 PDF 文件', 'error'); return; }
     window._submitting = true;
     const fd = new FormData();
-    for (const f of files) fd.append('files', f);
-    fd.append('title', title);
+    for (const x of _pendingFiles) fd.append('files', x.file);
     fd.append('isTotal', isTotal);
     // 总谱强制无声部；分谱提交多声部
     if (isTotal === '0') secs.forEach(s => fd.append('sections', s));
@@ -210,9 +259,14 @@ async function submitScore(id) {
     return;
   }
 
-  // 编辑：先更新元信息，再可选替换文件
+  // 编辑：可选改名 + 更新元信息 + 可选替换文件
+  const titleEl = document.getElementById('f-title');
+  const title = titleEl ? titleEl.value.trim() : '';
+  const fileEl = document.getElementById('f-files');
+  const files = fileEl ? fileEl.files : null;
   window._submitting = true;
-  const body = { title, isTotal: parseInt(isTotal) };
+  const body = { isTotal: parseInt(isTotal) };
+  if (title) body.title = title;
   body.section = isTotal === '1' ? '' : secs.join(','); // 总谱强制无声部
   const res = await api('/scores/' + id, { method: 'PUT', body: JSON.stringify(body) });
   if (!res.success) { showToast(res.message, 'error'); window._submitting = false; return; }

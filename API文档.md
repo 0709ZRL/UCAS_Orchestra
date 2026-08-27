@@ -327,9 +327,10 @@ zip 内文件命名：`乐谱名-声部.pdf`（总谱无声部后缀；重名自
 **GET /api/scores/:scoreId** — 详情
 **GET /api/scores/:scoreId/file** — 下载 PDF（inline 预览）
 
-**POST /api/scores/upload** — 上传（multipart，**支持一次多文件**）
-字段：`files`(多个 PDF，单个≤50MB，一次≤20个) `title` `isTotal` `sections`(多选，可重复字段；也兼容 `section` 逗号分隔)
-- 每个文件生成一条乐谱记录；同批同标题时自动追加 `(n)` 序号（避开唯一索引 title+isTotal+section）
+**POST /api/scores/upload** — 上传（multipart，**支持一次多文件 / 整个文件夹**）
+字段：`files`(多个 PDF，单个≤50MB，一次≤200个) `title`(可选) `isTotal` `sections`(多选，可重复字段；也兼容 `section` 逗号分隔)
+- **乐谱名不传时用文件名（去扩展名）作为乐谱名**；同批同标题时自动追加 `(n)` 序号（避开唯一索引 title+isTotal+section）
+- 前端支持选择文件夹（`webkitdirectory`），自动上传当前目录及子目录下所有 PDF（浏览器端过滤 .pdf）
 - 总谱强制无声部；分谱可多声部
 - 权限：管理员任意；声部长仅本声部分谱（且只能选本声部）；普通成员 403
 - 成功返回 `{createdCount, errors[]}`（哈希重复的文件单独列出失败，不影响其他文件）

@@ -55,7 +55,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024, files: 20 }, // 单个 50MB，一次最多 20 个文件
+  limits: { fileSize: 50 * 1024 * 1024, files: 200 }, // 单个 50MB，一次最多 200 个文件（支持整目录上传）
   fileFilter: (_req, file, cb) => {
     if (file.mimetype !== 'application/pdf') return cb(new Error('仅允许上传 PDF 文件'));
     cb(null, true);
@@ -178,7 +178,7 @@ router.post('/upload', requirePrivileged, (req, res, next) => {
     if (err) {
       if (err.message === '仅允许上传 PDF 文件') return res.status(400).json({ success: false, message: err.message });
       if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ success: false, message: '单个文件大小不能超过 50MB' });
-      if (err.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ success: false, message: '一次最多上传 20 个文件' });
+      if (err.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ success: false, message: '一次最多上传 200 个文件' });
       return next(err);
     }
     try {
@@ -186,7 +186,7 @@ router.post('/upload', requirePrivileged, (req, res, next) => {
       const files = req.files || [];
       if (!files.length) return res.status(400).json({ success: false, message: '请选择至少一个 PDF 文件' });
       const { title, isTotal, section, sections } = req.body;
-      if (!title) return res.status(400).json({ success: false, message: 'title 为必填项' });
+      // 乐谱名可选：不提供时用文件名（去扩展名）作为乐谱名
 
       // 声部解析：总谱强制无声部；分谱可多声部（逗号分隔存储）
       const secStr = resolveSection(isTotal, section, sections);
@@ -218,15 +218,16 @@ router.post('/upload', requirePrivileged, (req, res, next) => {
             errors.push(`${file.originalname}：该文件已存在（哈希重复）`);
             continue;
           }
-          // 标题唯一化：与库中记录及批内其他文件避免冲突
-          const finalTitle = await uniqueScoreTitle(title, isTotalVal, secStr, usedTitles);
+          // 乐谱名 = 显式 title 或文件名（去扩展名）；标题唯一化避免与库中及批内其他文件冲突
+          const baseTitle = (title && String(title).trim()) ? String(title).trim() : cleanFileName(file.originalname);
+          const finalTitle = await uniqueScoreTitle(baseTitle, isTotalVal, secStr, usedTitles);
           const newPath = path.join(UPLOAD_DIR, filehash + '.pdf');
           fs.renameSync(file.path, newPath);
           await pool.query(
             'INSERT INTO scores (title, isTotal, section, filehash) VALUES (?, ?, ?, ?)',
             [finalTitle, isTotalVal, secStr, filehash]
           );
-          created.push(`${file.originalname}${finalTitle !== title ? `（存为“${finalTitle}”）` : ''}`);
+          created.push(`${file.originalname} → “${finalTitle}”`);
         } catch (fe) {
           if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
           errors.push(`${file.originalname}：${fe.code === 'ER_DUP_ENTRY' ? '相同乐谱已存在' : '保存失败'}`);
@@ -248,6 +249,15 @@ router.post('/upload', requirePrivileged, (req, res, next) => {
 function cleanupFiles(files) {
   if (!Array.isArray(files)) return;
   files.forEach(f => { if (f && fs.existsSync(f.path)) { try { fs.unlinkSync(f.path); } catch (e) { /* 忽略 */ } } });
+}
+
+// 文件名清洗：multer 的 originalname 是 Latin-1，转回 UTF-8，并去掉扩展名
+function cleanFileName(originalname) {
+  let name = Buffer.from(String(originalname || ''), 'latin1').toString('utf8');
+  // 去掉扩展名
+  const dot = name.lastIndexOf('.');
+  if (dot > 0) name = name.slice(0, dot);
+  return name.replace(/[\/:*?"<>|]/g, '_').trim() || '未命名乐谱';
 }
 
 // 生成不冲突的标题：若 base 标题 + isTotal + section 已存在于库中或本批已用，则追加 " (n)"
