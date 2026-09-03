@@ -5,6 +5,9 @@ const SCORE_SECTIONS = ['民族管乐声部','弹拨一组','弹拨二组','胡�
 
 let _scoreFilters = { title: '', section: '', isTotal: '', page: 1 };
 const _scoreLimit = 20;
+// 批量删除：选中集合 与 当前页所有乐谱ID
+let _selected = new Set();
+let _currentPageIds = [];
 
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelector('.main')?.addEventListener('click', function() {
@@ -18,6 +21,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // 加载乐谱列表（读取搜索框当前值，联合搜索）
 async function loadScores() {
   const el = document.getElementById('page-scores');
+  _selected.clear();
+  _currentPageIds = [];
   const t = document.getElementById('sf-scores-title');
   const s = document.getElementById('sf-scores-section');
   const it = document.getElementById('sf-scores-isTotal');
@@ -49,7 +54,9 @@ function buildScoresToolbar() {
     <select id="sf-scores-section" onchange="scoreSearch()"><option value="">声部</option>${secOptions}</select>
     <select id="sf-scores-isTotal" onchange="scoreSearch()"><option value="">类型</option><option value="0" ${_scoreFilters.isTotal === '0' ? 'selected' : ''}>分谱</option><option value="1" ${_scoreFilters.isTotal === '1' ? 'selected' : ''}>总谱</option></select>
     <button onclick="scoreSearch()">🔍 搜索</button>
-    <button class="btn-download" onclick="exportScores()">📦 打包下载</button>`;
+    <button class="btn-download" onclick="exportScores()">📦 打包下载</button>
+    <span id="selected-count" style="font-size:13px;color:#e94560;font-weight:600"></span>
+    <button id="btn-del-selected" class="btn-del" onclick="deleteSelected()" disabled>🗑 全部删除</button>`;
   if (canAdd('scores')) html += `<button class="btn-green" onclick="showScoreForm()">＋ 新增</button>`;
   html += '</div>';
   return html;
@@ -62,12 +69,15 @@ function scoreSearch() {
 }
 
 function buildScoresTable(list) {
-  if (!list.length) return '<p style="padding:20px;text-align:center;color:#999">暂无乐谱</p>';
-  let html = '<table><tr><th>ID</th><th>乐谱名</th><th>类型</th><th>声部</th><th>PDF</th><th>操作</th></tr>';
+  _currentPageIds = (list || []).map(r => r.scoreId);
+  if (!list || !list.length) return '<p style="padding:20px;text-align:center;color:#999">暂无乐谱</p>';
+  const allOn = list.every(r => _selected.has(r.scoreId));
+  let html = '<table><tr><th style="width:34px"><input type="checkbox" id="chk-all" ' + (allOn ? 'checked' : '') + ' onchange="toggleSelectAll(this)"></th><th>ID</th><th>乐谱名</th><th>类型</th><th>声部</th><th>PDF</th><th>操作</th></tr>';
   list.forEach(r => {
     const canOp = canOperateRow('scores', r);
     const sec = r.isTotal == 1 ? '—' : String(r.section || '').split(',').filter(Boolean).join('、');
     html += `<tr>
+      <td><input type="checkbox" class="row-chk" data-id="${r.scoreId}" ${_selected.has(r.scoreId) ? 'checked' : ''} onchange="toggleScoreSelect(this)"></td>
       <td>${r.scoreId}</td>
       <td>${escHtml(r.title)}</td>
       <td>${r.isTotal == 1 ? '总谱' : '分谱'}</td>
@@ -282,7 +292,45 @@ async function submitScore(id) {
   loadScores();
 }
 
-// 删除
+// ===== 批量选择与全部删除 =====
+// 单行复选框：勾选/取消该项（仅影响“全部删除”的选中集合）
+function toggleScoreSelect(cb) {
+  const id = Number(cb.dataset.id);
+  if (cb.checked) _selected.add(id); else _selected.delete(id);
+  updateSelectionUI();
+}
+// 表头复选框：全选 / 取消全选 当前页
+function toggleSelectAll(cb) {
+  if (cb.checked) _currentPageIds.forEach(id => _selected.add(id));
+  else _currentPageIds.forEach(id => _selected.delete(id));
+  document.querySelectorAll('.row-chk').forEach(c => { c.checked = cb.checked; });
+  updateSelectionUI();
+}
+function updateSelectionUI() {
+  const btn = document.getElementById('btn-del-selected');
+  const cnt = document.getElementById('selected-count');
+  if (btn) btn.disabled = _selected.size === 0;
+  if (cnt) cnt.textContent = _selected.size ? `已选 ${_selected.size} 项` : '';
+}
+// 全部删除：仅当点击顶部“全部删除”按钮时，删除所有已选中项
+async function deleteSelected() {
+  const ids = Array.from(_selected);
+  if (!ids.length) return;
+  if (!confirm(`确认删除选中的 ${ids.length} 份乐谱？删除后不可恢复。`)) return;
+  if (window._submitting) return;
+  window._submitting = true;
+  let ok = 0, fail = 0;
+  for (const id of ids) {
+    const res = await api('/scores/' + id, { method: 'DELETE' });
+    if (res.success) ok++; else fail++;
+  }
+  window._submitting = false;
+  _selected.clear();
+  showToast(fail ? `已删除 ${ok} 份，${fail} 份失败` : `已删除 ${ok} 份乐谱`);
+  loadScores();
+}
+
+// 删除单个乐谱（无论是否被选中，都只删除这一条）
 async function delScore(id) {
   if (!confirm('确认删除该乐谱？')) return;
   const res = await api('/scores/' + id, { method: 'DELETE' });
