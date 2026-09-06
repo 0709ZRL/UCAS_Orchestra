@@ -19,6 +19,19 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
+// 接口返回的时间为 UTC ISO 字符串，转成本地(北京)时间用于显示，避免 8 小时漂移
+function toLocalTime(v) {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return String(v).replace('T', ' ').substring(0, 16);
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+// 用于 datetime-local 输入框的值（T 分隔）
+function toLocalDT(v) {
+  return toLocalTime(v).replace(' ', 'T');
+}
+
 // ===== 1. 文章列表 =====
 async function renderArticleList(page) {
   page = page || 1;
@@ -68,14 +81,14 @@ async function renderArticleList(page) {
       + '</tr></thead><tbody>';
     list.forEach(a => {
       const timeStr = (a.type === 0 || a.type === 1) && a.startTime
-        ? (a.startTime || '').replace('T', ' ').substring(0, 16) + ' ~ ' + (a.endTime || '').replace('T', ' ').substring(0, 16)
+        ? toLocalTime(a.startTime) + ' ~ ' + toLocalTime(a.endTime)
         : '';
       html += '<tr>'
         + '<td>' + a.articleId + '</td>'
         + '<td><a style="cursor:pointer;color:#667eea;text-decoration:none" onclick="showArticleDetailView(' + a.articleId + ')">' + escHtml(a.title) + '</a></td>'
         + '<td><span class="mtag ' + TYPE_TAGS[a.type] + '">' + TYPE_LABELS[a.type] + '</span></td>'
         + '<td style="color:#999;font-size:12px">' + timeStr + '</td>'
-        + '<td style="color:#999;font-size:13px">' + (a.createdAt || '').replace('T', ' ').substring(0, 16) + '</td>'
+        + '<td style="color:#999;font-size:13px">' + toLocalTime(a.createdAt) + '</td>'
         + '<td class="actions">'
         + '<button class="btn-edit" onclick="showArticleEditor(' + a.articleId + ')">编辑</button>'
         + '<button class="btn-del" onclick="deleteArticle(' + a.articleId + ')">删除</button>'
@@ -111,7 +124,7 @@ async function showArticleDetailView(id) {
     + '<h2 style="font-size:22px;margin-bottom:8px">' + escHtml(a.title) + '</h2>'
     + '<div style="font-size:13px;color:#999;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #f0f0f0">'
     + '<span class="mtag ' + TYPE_TAGS[a.type] + '" style="margin-right:10px">' + TYPE_LABELS[a.type] + '</span>'
-    + (a.createdAt || '').replace('T', ' ').substring(0, 16)
+    + toLocalTime(a.createdAt)
     + '</div>';
   // 渲染富文本内容
   html += '<div class="article-content" style="font-size:15px;line-height:1.9;color:#444">' + (a.content || '无内容') + '</div>';
@@ -170,7 +183,7 @@ function renderEditor(el, data) {
   _uploadedFiles = [...attachments];
 
   let editorContent = content;
-  const fmtDT = (v) => v ? v.replace('T',' ').substring(0,16) : '';
+  const fmtDT = (v) => v ? toLocalDT(v) : '';
 
   let html = '<div style="max-width:960px;margin:0 auto;background:#fff;border-radius:10px;padding:28px 32px;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
     + '<h2 style="font-size:20px;margin-bottom:20px">' + (isEdit ? '编辑文章' : '发布文章') + '</h2>'
@@ -192,7 +205,7 @@ function renderEditor(el, data) {
     + '<label>打卡地点</label>'
     + '<div class="loc-search-wrap">'
     + '<div class="loc-search-row">'
-    + '<input id="ae-loc-search" type="text" placeholder="输入地名搜索，或直接输入 纬度,经度（如 39.9,116.3）" style="flex:1;padding:10px 12px;border:1px solid #d9d9d9;border-radius:8px 0 0 8px;font-size:14px;outline:none" value="">'
+    + '<input id="ae-loc-search" type="text" placeholder="输入地名搜索；或直接输入坐标，如 39.98,116.34（经度纬度顺序也自动识别）" oninput="onLocSearchInput(this.value)" style="flex:1;padding:10px 12px;border:1px solid #d9d9d9;border-radius:8px 0 0 8px;font-size:14px;outline:none" value="">'
     + '<button class="loc-search-btn" onclick="doLocSearch()">🔍 搜索</button>'
     + '</div>'
     + '<div id="ae-loc-results" class="loc-results" style="display:none"></div>'
@@ -205,7 +218,7 @@ function renderEditor(el, data) {
     + '<div id="ae-loc-map" style="display:' + (data && data.location ? 'block' : 'none') + ';margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #e0e0e0;height:160px;background:#f5f5f5">'
     + '<iframe id="ae-loc-map-iframe" style="width:100%;height:100%;border:none" sandbox="allow-scripts" loading="lazy"></iframe>'
     + '</div>'
-    + '<div style="font-size:12px;color:#999;margin-top:6px">💡 支持输入地名搜索，也可直接输入 <b>纬度,经度</b>（如 39.9042,116.4074）。若搜索失败可前往 <a href="https://lbs.amap.com/console/show/picker" target="_blank" style="color:#667eea">高德坐标拾取器</a></div>'
+    + '<div style="font-size:12px;color:#999;margin-top:6px">💡 直接输入坐标即自动生效并保存（无需搜索，兼容 <b>纬度,经度</b> 与 <b>经度,纬度</b>，自动纠正顺序）；也可输入地名后点 🔍 搜索。可用 <a href="https://lbs.amap.com/console/show/picker" target="_blank" style="color:#667eea">高德坐标拾取器</a> 获取坐标</div>'
     + '</div>'
     + '</div>'
     + '<div class="form-group" style="margin-bottom:14px"><label>正文内容</label>'
@@ -328,7 +341,13 @@ async function saveArticle() {
     const et = document.getElementById('ae-endTime')?.value;
     if (st) body.startTime = st;
     if (et) body.endTime = et;
-    const loc = document.getElementById('ae-location')?.value?.trim();
+    let loc = document.getElementById('ae-location')?.value?.trim();
+    if (!loc) {
+      // 兜底：若隐藏字段为空但输入框里是坐标，直接采用（无需搜索地名）
+      const box = document.getElementById('ae-loc-search')?.value?.trim();
+      const c = parseLocCoord(box);
+      if (c) loc = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
+    }
     if (loc) body.location = loc;
   }
   if (_uploadedFiles.length) body.attachments = JSON.stringify(_uploadedFiles);
@@ -377,17 +396,15 @@ async function doLocSearch() {
   resultsEl.innerHTML = '<div class="loc-result-item" style="color:#999;cursor:default">⏳ 搜索中...</div>';
   resultsEl.style.display = 'block';
 
-  // 判断是否直接输入了坐标（如 39.9042,116.4074）
-  const coordMatch = q.match(/^(-?\d+\.?\d*)\s*[,，]\s*(-?\d+\.?\d*)$/);
-  if (coordMatch) {
-    const lat = parseFloat(coordMatch[1]);
-    const lng = parseFloat(coordMatch[2]);
-    if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
-      resultsEl.innerHTML = ''
-        + '<div class="loc-result-item" onclick="selectLocation(\'' + escHtml(q) + '\', ' + lat + ', ' + lng + ')">'
-        + '📍 <strong>直接使用坐标：' + q + '</strong></div>';
-      return;
-    }
+  // 直接输入坐标（兼容 经度,纬度 与 纬度,经度，自动纠正顺序；无需搜索地名即可保存）
+  const c = parseLocCoord(q);
+  if (c) {
+    const coordStr = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
+    resultsEl.innerHTML = ''
+      + '<div class="loc-result-item" onclick="selectLocation(\'' + coordStr + '\',' + c.lat + ',' + c.lng + ')">'
+      + '📍 <strong>直接使用坐标：' + coordStr + '</strong></div>';
+    resultsEl.style.display = 'block';
+    return;
   }
 
   // 从浏览器端调用 Nominatim 进行地名搜索
@@ -438,17 +455,25 @@ function showSearchFailed(resultsEl) {
     + '方式二：前往 <a href="https://lbs.amap.com/console/show/picker" target="_blank" style="color:#667eea">高德坐标拾取器</a> 获取坐标后粘贴</div>';
 }
 
-// 选择地点
-function selectLocation(name, lat, lng) {
+// 解析用户输入的坐标：兼容 纬度,经度 或 经度,纬度（自动纠正为 纬度,经度）；无法解析返回 null
+function parseLocCoord(str) {
+  const m = String(str || '').trim().match(/^(-?\d+(?:\.\d+)?)\s*[,，]\s*(-?\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const a = parseFloat(m[1]), b = parseFloat(m[2]);
+  const latA = a >= -90 && a <= 90, lngA = a >= -180 && a <= 180;
+  const latB = b >= -90 && b <= 90, lngB = b >= -180 && b <= 180;
+  if (latA && lngB) return { lat: a, lng: b };      // a 是纬度
+  if (latB && lngA) return { lat: b, lng: a };      // a 是经度、b 是纬度 → 纠正顺序
+  return null;
+}
+
+// 应用坐标到隐藏字段并展示（不改动搜索框文本）
+function applyLocation(lat, lng, name) {
   const coordStr = lat.toFixed(6) + ',' + lng.toFixed(6);
   document.getElementById('ae-location').value = coordStr;
-  document.getElementById('ae-loc-search').value = name;
-  document.getElementById('ae-loc-name-display').textContent = name;
+  document.getElementById('ae-loc-name-display').textContent = name || '已选地点';
   document.getElementById('ae-loc-coord-display').textContent = '(' + coordStr + ')';
   document.getElementById('ae-loc-display').style.display = 'flex';
-  closeLocResults();
-
-  // 更新地图
   const mapEl = document.getElementById('ae-loc-map');
   const iframe = document.getElementById('ae-loc-map-iframe');
   if (mapEl && iframe) {
@@ -457,7 +482,22 @@ function selectLocation(name, lat, lng) {
       + (lng - 0.005) + ',' + (lat - 0.005) + ',' + (lng + 0.005) + ',' + (lat + 0.005)
       + '&layer=mapnik&marker=' + lat + ',' + lng;
   }
+}
 
+// 在输入框直接输入坐标即自动生效（无需搜索地名、无需点击结果），可直接保存
+function onLocSearchInput(val) {
+  const c = parseLocCoord(val);
+  if (!c) return;
+  applyLocation(c.lat, c.lng, val);
+  const rEl = document.getElementById('ae-loc-results');
+  if (rEl) { rEl.innerHTML = ''; rEl.style.display = 'none'; }
+}
+
+// 选择地点（点击搜索结果 / 坐标结果）
+function selectLocation(name, lat, lng) {
+  applyLocation(lat, lng, name);
+  document.getElementById('ae-loc-search').value = name;
+  closeLocResults();
   showToast('✅ 已选择地点');
 }
 
