@@ -52,8 +52,7 @@ async function loadCheckinPage() {
     } else {
       html += '<div class="event-list">';
       events.forEach(ev => {
-        const timeStr = (ev.startTime || '').replace('T', ' ').substring(0, 16)
-          + ' ~ ' + (ev.endTime || '').replace('T', ' ').substring(0, 16);
+        const timeStr = fmtCN(ev.startTime) + ' ~ ' + fmtCN(ev.endTime);
         const alreadyChecked = checkedEventIds.has(ev.eventId);
         const locTxt = ev.location || '';
 
@@ -88,7 +87,7 @@ async function loadCheckinPage() {
       html += '<div style="text-align:center;padding:30px;color:#ccc;font-size:14px">暂无打卡记录</div>';
     } else {
       history.slice(0, 20).forEach(h => {
-        const t = h.startTime ? (h.startTime || '').replace('T', ' ').substring(0, 16) : '';
+        const t = h.startTime ? fmtCN(h.startTime) : '';
         html += '<div class="history-item">'
           + '<div class="hi-title">' + escHtml(h.title || '活动') + '</div>'
           + '<div class="hi-time">' + t + '</div>'

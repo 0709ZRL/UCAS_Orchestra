@@ -122,7 +122,7 @@ async function attLookup() {
     } else {
       html += `<div style="background:#fff3cd;padding:8px 12px;border-radius:6px;margin-bottom:8px"><b>⚠ 找到多项活动：</b></div>`;
       res.eventOptions.forEach(e => {
-        const st = e.startTime ? e.startTime.replace('T', ' ').substring(0, 16) : '';
+        const st = e.startTime ? fmtCN(e.startTime) : '';
         html += `<label style="display:block;padding:6px 10px;background:#f8f9ff;border-radius:4px;margin-bottom:4px;cursor:pointer">
           <input type="radio" name="att-pick-event" value="${e.eventId}" data-label="${e.title}(${e.year}-${e.month}-${e.date})"> ${e.title} ${st} ${e.year}-${e.month}-${e.date}
         </label>`;

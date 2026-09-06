@@ -46,6 +46,20 @@ function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('open');
 }
 
+// ===== 时间显示：接口返回的 DATETIME 序列化为 UTC（相对北京时间少 8 小时），统一转北京时间 =====
+// sep 传 'T' 时输出 'YYYY-MM-DDTHH:mm'（供 datetime-local 输入框），默认空格分隔
+function fmtCN(v, sep) {
+  if (!v && v !== 0) return '';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) {
+    return String(v).replace('T', sep || ' ').substring(0, 16);
+  }
+  const bj = new Date(d.getTime() + 8 * 3600 * 1000); // 平移到 UTC+8
+  const p = (n) => String(n).padStart(2, '0');
+  const sp = sep || ' ';
+  return bj.getUTCFullYear() + '-' + p(bj.getUTCMonth() + 1) + '-' + p(bj.getUTCDate()) + sp + p(bj.getUTCHours()) + ':' + p(bj.getUTCMinutes());
+}
+
 // API 请求
 async function api(path, opts = {}) {
   const r = await fetch('/api' + path, {

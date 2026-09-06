@@ -79,7 +79,7 @@ async function renderHomepage() {
         html += '<div class="hs-card" onclick="showArticleDetail(' + a.articleId + ')">'
           + '<div class="hs-card-title">' + escHtml(a.title) + '</div>'
           + '<div class="hs-card-summary">' + summarizeHtml(a.summary || a.content, 120) + '</div>'
-          + '<div class="hs-card-date">' + (a.createdAt ? a.createdAt.replace('T', ' ').substring(0, 16) : '') + '</div></div>';
+          + '<div class="hs-card-date">' + (a.createdAt ? fmtCN(a.createdAt) : '') + '</div></div>';
       });
     } else {
       html += '<div class="hs-empty">暂无</div>';
@@ -126,7 +126,7 @@ function checkEventModal() {
       + '<div class="rehearsal-modal">'
       + '<div class="rehearsal-badge">📢 活动报名</div>'
       + '<h2 class="rehearsal-title">' + escHtml(ev.title) + '</h2>'
-      + '<div class="rehearsal-time">🕐 ' + (ev.startTime || '').replace('T',' ').substring(0,16) + ' ~ ' + (ev.endTime || '').replace('T',' ').substring(0,16) + '</div>'
+      + '<div class="rehearsal-time">🕐 ' + fmtCN(ev.startTime) + ' ~ ' + fmtCN(ev.endTime) + '</div>'
       + '<div class="rehearsal-desc">' + escHtml((ev.appendix || ev.title || '').substring(0, 200)) + '</div>'
       + '<div class="rehearsal-actions">'
       + '<button class="rehearsal-detail-btn" onclick="closeRehearsal()">✕ 关闭</button>'
@@ -334,7 +334,7 @@ async function showAllArticles(type, page) {
         + '<div class="al-title">' + escHtml(a.title) + '</div>'
         + '<div class="al-summary">' + summarizeHtml(a.summary || a.content, 80) + '</div>'
         + '</div>'
-        + '<div class="al-date">' + (a.createdAt ? a.createdAt.replace('T', ' ').substring(0, 16) : '') + '</div>'
+        + '<div class="al-date">' + (a.createdAt ? fmtCN(a.createdAt) : '') + '</div>'
         + '</div>';
     });
   }
@@ -382,10 +382,10 @@ async function showArticleDetail(id) {
     + '<h2 style="font-size:22px;margin-bottom:8px">' + escHtml(a.title) + '</h2>'
     + '<div style="font-size:14px;color:#999;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid #f0f0f0">'
     + '<span class="mtag ' + TYPE_TAGS[a.type] + '" style="margin-right:10px">' + TYPE_LABELS[a.type] + '</span>'
-    + (a.createdAt || '').replace('T', ' ').substring(0, 16)
+    + fmtCN(a.createdAt)
     + '</div>'
     + '<div class="article-content" style="font-size:15px;line-height:1.9;color:#444;padding:0 4px">' + (a.content || '无内容') + '</div>'
-    + ((a.type === 0 || a.type === 1) && a.startTime ? '<div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap"><span style="font-size:13px;color:#888">🕐 ' + (a.startTime||'').replace('T',' ').substring(0,16) + ' ~ ' + (a.endTime||'').replace('T',' ').substring(0,16) + '</span></div>' : '')
+    + ((a.type === 0 || a.type === 1) && a.startTime ? '<div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap"><span style="font-size:13px;color:#888">🕐 ' + fmtCN(a.startTime) + ' ~ ' + fmtCN(a.endTime) + '</span></div>' : '')
     + '<div style="margin-top:24px;display:flex;gap:8px">'
     + '<button class="btn" onclick="history.back()" style="background:linear-gradient(135deg,#6c757d,#495057)">← 返回</button>'
     + ((a.type === 0 || a.type === 1) && a.endTime && new Date(a.endTime) > new Date() ? '<button class="btn rehearsal-detail-reg-btn" onclick="doDetailRegister(' + a.articleId + ')">📝 报名</button>' : '')
@@ -434,7 +434,7 @@ async function showMyRegistrations() {
     list.forEach(r => {
       if (!r.articleId) return; // 跳过无关联数据的记录
       const isPast = r.endTime && new Date(r.endTime) < now;
-      const timeStr = r.startTime ? (r.startTime||'').replace('T',' ').substring(0,16) + ' ~ ' + (r.endTime||'').replace('T',' ').substring(0,16) : '';
+      const timeStr = r.startTime ? fmtCN(r.startTime) + ' ~ ' + fmtCN(r.endTime) : '';
       html += '<div style="background:#fff;border-radius:10px;padding:16px 20px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)">'
         + '<div style="display:flex;align-items:center;gap:12px">'
         + '<span class="mtag ' + (r.type === 0 || r.type === 1 ? TYPE_TAGS[r.type] : 't0') + '">' + (r.type === 0 ? '排练' : r.type === 1 ? '演出' : '活动') + '</span>'

@@ -19,18 +19,10 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-// 接口返回的时间为 UTC ISO 字符串，转成本地(北京)时间用于显示，避免 8 小时漂移
-function toLocalTime(v) {
-  if (!v) return '';
-  const d = new Date(v);
-  if (isNaN(d.getTime())) return String(v).replace('T', ' ').substring(0, 16);
-  const p = (n) => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
-}
+// 接口返回的时间为 UTC（相对北京时间少 8 小时），统一转北京时间显示（fmtCN 定义于 utils.js）
+function toLocalTime(v) { return fmtCN(v); }
 // 用于 datetime-local 输入框的值（T 分隔）
-function toLocalDT(v) {
-  return toLocalTime(v).replace(' ', 'T');
-}
+function toLocalDT(v) { return fmtCN(v, 'T'); }
 
 // ===== 1. 文章列表 =====
 async function renderArticleList(page) {

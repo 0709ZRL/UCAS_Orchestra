@@ -448,7 +448,7 @@ function renderDetailPanel() {
     });
   }
   html += '</span></div>'
-    + '<div class="dc-row"><span class="dc-label">创建时间</span><span class="dc-value">' + String(r.createdAt || '').replace('T',' ').slice(0,16) + '</span></div>'
+    + '<div class="dc-row"><span class="dc-label">创建时间</span><span class="dc-value">' + fmtCN(r.createdAt) + '</span></div>'
     + '</div>';
 
   if (canManage) {
