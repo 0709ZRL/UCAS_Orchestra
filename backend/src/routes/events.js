@@ -47,6 +47,8 @@ router.get('/ongoing', async (req, res, next) => {
     const combined = [...eventRows, ...articleRows].sort((a, b) =>
       new Date(a.startTime) - new Date(b.startTime)
     );
+    // 同时提供 id 与 eventId 两个字段，兼容不同调用方（打卡页用 eventId）
+    combined.forEach(r => { r.eventId = r.id; });
     res.json({ success: true, data: combined });
   } catch (err) { next(err); }
 });
