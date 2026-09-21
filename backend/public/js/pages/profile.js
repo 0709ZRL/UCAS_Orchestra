@@ -27,7 +27,7 @@ async function showProfile() {
     }
   });
 
-  html += `<div class="profile-actions"><button class="btn-primary" onclick="showProfileEdit()">✏️ 编辑信息</button></div></div>`;
+  html += `<div class="profile-actions"><button class="btn-primary" onclick="showProfileEdit()">✏️ 编辑信息</button> <button class="btn-secondary" onclick="showChangePassword()">🔑 修改密码</button></div></div>`;
   document.getElementById('page-profile').innerHTML = html;
 
   // 头像加载失败时显示默认占位
@@ -94,6 +94,39 @@ async function submitProfile() {
   const res = await api('/auth/profile', { method: 'PUT', body: JSON.stringify(body) });
   if (res.success) { showToast('已更新'); closeModal(); showProfile(); }
   else showToast(res.message, 'error');
+}
+
+// 修改密码弹窗
+function showChangePassword() {
+  const html = `<h2>🔑 修改密码</h2><form id="pwdForm">
+    <div class="form-row">
+      <div class="form-group"><label>原密码</label><input id="pw-old" type="password" placeholder="请输入当前密码"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>新密码</label><input id="pw-new" type="password" placeholder="至少6位"></div>
+      <div class="form-group"><label>确认新密码</label><input id="pw-new2" type="password" placeholder="再次输入新密码"></div>
+    </div>
+  </form><div class="form-actions">
+    <button class="btn-cancel" onclick="closeModal()">取消</button>
+    <button class="btn-green" onclick="submitChangePassword()">确认修改</button>
+  </div>`;
+  openModal(html);
+}
+
+// 提交修改密码
+async function submitChangePassword() {
+  if (window._submitting) return;
+  window._submitting = true;
+  const oldPassword = document.getElementById('pw-old').value;
+  const newPassword = document.getElementById('pw-new').value;
+  const newPassword2 = document.getElementById('pw-new2').value;
+  if (!oldPassword || !newPassword || !newPassword2) { showToast('请填写所有字段', 'error'); window._submitting = false; return; }
+  if (newPassword.length < 6) { showToast('新密码长度不能少于 6 位', 'error'); window._submitting = false; return; }
+  if (newPassword !== newPassword2) { showToast('两次输入的新密码不一致', 'error'); window._submitting = false; return; }
+  const res = await api('/auth/password', { method: 'PUT', body: JSON.stringify({ oldPassword, newPassword }) });
+  if (res.success) { showToast('密码修改成功'); closeModal(); }
+  else showToast(res.message, 'error');
+  window._submitting = false;
 }
 
 // 点击主区域关闭侧栏（移动端）

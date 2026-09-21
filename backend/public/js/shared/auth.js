@@ -154,6 +154,46 @@ async function doLogin() {
   window._submitting = false;
 }
 
+// 切换登录 / 忘记密码视图
+function showForgot() {
+  const lv = document.getElementById('loginView');
+  const fv = document.getElementById('forgotView');
+  if (lv) lv.style.display = 'none';
+  if (fv) fv.style.display = '';
+}
+function showLogin() {
+  const lv = document.getElementById('loginView');
+  const fv = document.getElementById('forgotView');
+  if (fv) fv.style.display = 'none';
+  if (lv) lv.style.display = '';
+  const fe = document.getElementById('forgotErr');
+  if (fe) fe.textContent = '';
+}
+
+// 忘记密码：账号+姓名校验后重置密码
+async function doForgot() {
+  if (window._submitting) return;
+  window._submitting = true;
+  const err = document.getElementById('forgotErr');
+  const account = document.getElementById('forgotAccount').value.trim();
+  const name = document.getElementById('forgotName').value.trim();
+  const pwd = document.getElementById('forgotPassword').value;
+  const pwd2 = document.getElementById('forgotPassword2').value;
+  if (!account || !name || !pwd || !pwd2) { err.textContent = '请填写所有字段'; window._submitting = false; return; }
+  if (pwd.length < 6) { err.textContent = '新密码长度不能少于 6 位'; window._submitting = false; return; }
+  if (pwd !== pwd2) { err.textContent = '两次输入的新密码不一致'; window._submitting = false; return; }
+  const res = await api('/auth/forgot', { method: 'POST', body: JSON.stringify({ account, name, newPassword: pwd }) });
+  if (res.success) {
+    showLogin();
+    alert(res.message);
+    const la = document.getElementById('loginAccount');
+    if (la) la.value = account;
+  } else {
+    err.textContent = res.message;
+  }
+  window._submitting = false;
+}
+
 // 注册功能
 async function doRegister() {
   if (window._submitting) return;

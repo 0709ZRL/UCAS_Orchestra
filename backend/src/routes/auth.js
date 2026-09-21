@@ -6,7 +6,6 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
-const { getTokenFromReq } = require('../middleware/auth');
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'orchestra_secret_key_2026';
@@ -60,6 +59,10 @@ router.post('/register', async (req, res, next) => {
     const [dup] = await pool.query('SELECT personalId FROM persons WHERE account = ?', [account]);
     if (dup.length) return res.status(409).json({ success: false, message: '该账号已被注册' });
 
+    // 检查姓名重复：同一姓名已存在账号时，不允许再创建新账号
+    const [dupName] = await pool.query('SELECT personalId FROM persons WHERE name = ? AND account <> \'\'', [name]);
+    if (dupName.length) return res.status(409).json({ success: false, message: '该姓名已存在账号，请勿重复创建' });
+
     const hashed = await bcrypt.hash(password, 10);
     const personalId = generatePersonalId();
 
@@ -83,8 +86,7 @@ router.post('/register', async (req, res, next) => {
     const token = jwt.sign({ personalId, account, name }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', token, COOKIE_OPTIONS);
     res.cookie('userName', name, { ...COOKIE_OPTIONS, httpOnly: false });
-    // token 同时放入响应体，便于外部程序（小程序）直接保存
-    res.status(201).json({ success: true, message: '注册成功', personalId, name, token });
+    res.status(201).json({ success: true, message: '注册成功', personalId, name });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: '该账号已被注册' });
     next(err);
@@ -110,25 +112,17 @@ router.post('/login', async (req, res, next) => {
     );
     res.cookie('token', token, COOKIE_OPTIONS);
     res.cookie('userName', user.name, { ...COOKIE_OPTIONS, httpOnly: false });
-    // token 同时放入响应体，便于外部程序（小程序）直接保存，无需解析 Set-Cookie
-    res.json({ success: true, message: '登录成功', name: user.name, token });
+    res.json({ success: true, message: '登录成功', name: user.name });
   } catch (err) { next(err); }
 });
 
-// GET /api/auth/me — 获取当前登录用户的完整个人信息（不含密码）
-router.get('/me', async (req, res, next) => {
+// GET /api/auth/me — 获取当前登录用户
+router.get('/me', (req, res, next) => {
   try {
-    const token = getTokenFromReq(req);
+    const token = req.cookies?.token;
     if (!token) return res.json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
-    const [rows] = await pool.query(
-      `SELECT personalId, account, name, gender, institute, grade, campus, section, job,
-              isManager, managerJob, instrument, isMaster, avatarhash, isOrchestraMember
-       FROM persons WHERE personalId = ?`,
-      [decoded.personalId]
-    );
-    if (!rows.length) return res.json({ success: false, message: '用户不存在' });
-    res.json({ success: true, data: rows[0] });
+    res.json({ success: true, data: { personalId: decoded.personalId, account: decoded.account, name: decoded.name } });
   } catch (err) {
     res.clearCookie('token'); res.clearCookie('userName');
     return res.json({ success: false, message: '登录已过期' });
@@ -142,12 +136,60 @@ router.post('/logout', (_req, res) => {
   res.json({ success: true, message: '已退出' });
 });
 
+// POST /api/auth/forgot — 忘记密码：通过 账号+真实姓名 校验后重置密码
+router.post('/forgot', async (req, res, next) => {
+  try {
+    const { account, name, newPassword } = req.body;
+    if (!account || !name || !newPassword) {
+      return res.status(400).json({ success: false, message: '账号、姓名、新密码为必填项' });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ success: false, message: '新密码长度不能少于 6 位' });
+    }
+    const [rows] = await pool.query('SELECT personalId, name FROM persons WHERE account = ?', [account]);
+    if (!rows.length) return res.status(404).json({ success: false, message: '账号不存在' });
+    if (rows[0].name !== name) {
+      return res.status(400).json({ success: false, message: '账号与姓名不匹配，无法重置' });
+    }
+    const hashed = await bcrypt.hash(String(newPassword), 10);
+    await pool.query('UPDATE persons SET password = ? WHERE personalId = ?', [hashed, rows[0].personalId]);
+    res.json({ success: true, message: '密码已重置，请使用新密码登录' });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/auth/password — 登录状态下修改密码（需验证原密码）
+router.put('/password', async (req, res, next) => {
+  try {
+    const token = req.cookies?.token;
+    if (!token) return res.status(401).json({ success: false, message: '未登录' });
+    let decoded;
+    try { decoded = jwt.verify(token, JWT_SECRET); }
+    catch (e) { return res.status(401).json({ success: false, message: '登录已过期' }); }
+
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: '原密码和新密码为必填项' });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ success: false, message: '新密码长度不能少于 6 位' });
+    }
+    const [rows] = await pool.query('SELECT password FROM persons WHERE personalId = ?', [decoded.personalId]);
+    if (!rows.length) return res.status(404).json({ success: false, message: '未找到该账号' });
+    const ok = await bcrypt.compare(String(oldPassword), rows[0].password);
+    if (!ok) return res.status(400).json({ success: false, message: '原密码错误' });
+
+    const hashed = await bcrypt.hash(String(newPassword), 10);
+    await pool.query('UPDATE persons SET password = ? WHERE personalId = ?', [hashed, decoded.personalId]);
+    res.json({ success: true, message: '密码修改成功' });
+  } catch (err) { next(err); }
+});
+
 // POST /api/auth/avatar — 上传头像（含裁剪数据）
 router.post('/avatar', (req, res, next) => {
   avatarUpload.single('avatar')(req, res, async (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message || '上传失败' });
     try {
-      const token = getTokenFromReq(req);
+      const token = req.cookies?.token;
       if (!token) return res.status(401).json({ success: false, message: '未登录' });
       const decoded = jwt.verify(token, JWT_SECRET);
       if (!req.file) return res.status(400).json({ success: false, message: '请选择图片' });
@@ -178,7 +220,7 @@ router.post('/avatar', (req, res, next) => {
 // GET /api/auth/avatar — 获取当前用户头像
 router.get('/avatar', async (req, res, next) => {
   try {
-    const token = getTokenFromReq(req);
+    const token = req.cookies?.token;
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const [rows] = await pool.query('SELECT avatarhash FROM persons WHERE personalId = ?', [decoded.personalId]);
@@ -197,7 +239,7 @@ router.get('/avatar', async (req, res, next) => {
 // PUT /api/auth/profile — 修改个人信息（不含密码）
 router.put('/profile', async (req, res, next) => {
   try {
-    const token = getTokenFromReq(req);
+    const token = req.cookies?.token;
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const fields = ['name','gender','institute','grade','campus','section','job','isManager','managerJob','instrument','isMaster'];

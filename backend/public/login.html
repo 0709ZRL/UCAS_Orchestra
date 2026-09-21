@@ -9,14 +9,30 @@
 <body>
 <div id="auth-page" class="auth-page" style="display:flex">
   <div class="auth-box">
-    <h2>🎵 乐团管理系统</h2>
-    <form id="authForm">
-      <div class="form-group"><label>账号</label><input id="loginAccount" type="text" placeholder="请输入账号"></div>
-      <div class="form-group"><label>密码</label><input id="loginPassword" type="password" placeholder="请输入密码"></div>
-    </form>
-    <button class="auth-btn" onclick="doLogin()">登 录</button>
-    <div class="auth-link">还没有账号？<a href="/register">立即注册</a></div>
-    <div id="authErr" style="color:#e94560;text-align:center;margin-top:12px;font-size:14px"></div>
+    <!-- 登录视图 -->
+    <div id="loginView">
+      <h2>🎵 乐团管理系统</h2>
+      <form id="authForm">
+        <div class="form-group"><label>账号</label><input id="loginAccount" type="text" placeholder="请输入账号"></div>
+        <div class="form-group"><label>密码</label><input id="loginPassword" type="password" placeholder="请输入密码"></div>
+      </form>
+      <button class="auth-btn" onclick="doLogin()">登 录</button>
+      <div class="auth-link">还没有账号？<a href="/register">立即注册</a> · <a onclick="showForgot()">忘记密码？</a></div>
+      <div id="authErr" style="color:#e94560;text-align:center;margin-top:12px;font-size:14px"></div>
+    </div>
+    <!-- 忘记密码视图 -->
+    <div id="forgotView" style="display:none">
+      <h2>🔑 重置密码</h2>
+      <form id="forgotForm">
+        <div class="form-group"><label>账号</label><input id="forgotAccount" type="text" placeholder="请输入账号"></div>
+        <div class="form-group"><label>真实姓名</label><input id="forgotName" type="text" placeholder="请输入注册时的真实姓名"></div>
+        <div class="form-group"><label>新密码</label><input id="forgotPassword" type="password" placeholder="请输入新密码（至少6位）"></div>
+        <div class="form-group"><label>确认新密码</label><input id="forgotPassword2" type="password" placeholder="请再次输入新密码"></div>
+      </form>
+      <button class="auth-btn" onclick="doForgot()">重置密码</button>
+      <div class="auth-link"><a onclick="showLogin()">返回登录</a></div>
+      <div id="forgotErr" style="color:#e94560;text-align:center;margin-top:12px;font-size:14px"></div>
+    </div>
   </div>
 </div>
 <div id="toast"></div>
