@@ -27,7 +27,7 @@ async function showProfile() {
     }
   });
 
-  html += `<div class="profile-actions"><button class="btn-primary" onclick="showProfileEdit()">✏️ 编辑信息</button> <button class="btn-secondary" onclick="showChangePassword()">🔑 修改密码</button></div></div>`;
+  html += `<div class="profile-actions"><button class="btn-primary" onclick="showProfileEdit()">✏️ 编辑信息</button> <button class="btn-ghost" onclick="showChangePassword()">🔒 修改密码</button></div></div>`;
   document.getElementById('page-profile').innerHTML = html;
 
   // 头像加载失败时显示默认占位
