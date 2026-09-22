@@ -200,7 +200,8 @@ router.post('/avatar', (req, res, next) => {
   avatarUpload.single('avatar')(req, res, async (err) => {
     if (err) return res.status(400).json({ success: false, message: err.message || '上传失败' });
     try {
-      const token = req.cookies?.token;
+      // 兼容 Cookie 与 Authorization: Bearer（小程序）
+      const token = getTokenFromReq(req);
       if (!token) return res.status(401).json({ success: false, message: '未登录' });
       const decoded = jwt.verify(token, JWT_SECRET);
       if (!req.file) return res.status(400).json({ success: false, message: '请选择图片' });
@@ -231,7 +232,8 @@ router.post('/avatar', (req, res, next) => {
 // GET /api/auth/avatar — 获取当前用户头像
 router.get('/avatar', async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
+    // 兼容 Cookie 与 Authorization: Bearer（小程序）
+    const token = getTokenFromReq(req);
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const [rows] = await pool.query('SELECT avatarhash FROM persons WHERE personalId = ?', [decoded.personalId]);
@@ -250,7 +252,8 @@ router.get('/avatar', async (req, res, next) => {
 // PUT /api/auth/profile — 修改个人信息（不含密码）
 router.put('/profile', async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
+    // 兼容 Cookie 与 Authorization: Bearer（小程序）
+    const token = getTokenFromReq(req);
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const fields = ['name','gender','institute','grade','campus','section','job','isManager','managerJob','instrument','isMaster'];
@@ -259,7 +262,9 @@ router.put('/profile', async (req, res, next) => {
     const values = fields.filter(f => req.body[f] !== undefined).map(f => {
       if (['gender','isManager','isMaster'].includes(f)) return req.body[f] ? 1 : 0;
       if (['campus','section','job','managerJob'].includes(f)) return parseInt(req.body[f]) || 0;
-      return req.body[f] || null;
+      let v = req.body[f];
+      if (Array.isArray(v)) v = v.join(';'); // instrument 等可能以数组提交（小程序徽章多选）
+      return v || null;
     });
     values.push(decoded.personalId);
     await pool.query(`UPDATE persons SET ${sets.join(', ')} WHERE personalId = ?`, values);
