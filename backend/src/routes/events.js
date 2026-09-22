@@ -1,6 +1,9 @@
 const express = require('express');
 const pool = require('../db');
+const { loadUser, requireManager } = require('../middleware/auth');
 const router = express.Router();
+
+router.use(loadUser);
 
 // 生成 eventId：E + 36进制时间戳 + 4位随机数
 function generateEventId() {
@@ -63,7 +66,7 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/events — 新增活动
-router.post('/', async (req, res, next) => {
+router.post('/', requireManager, async (req, res, next) => {
   try {
     const { title, startTime, endTime, appendix, location } = req.body;
     if (!title) return res.status(400).json({ success: false, message: '标题为必填项' });
@@ -88,7 +91,7 @@ router.post('/', async (req, res, next) => {
 });
 
 // PUT /api/events/:id — 更新活动
-router.put('/:id', async (req, res, next) => {
+router.put('/:id', requireManager, async (req, res, next) => {
   try {
     const fields = ['title', 'startTime', 'endTime', 'appendix', 'location'];
     const sets = [];
@@ -118,7 +121,7 @@ router.put('/:id', async (req, res, next) => {
 });
 
 // DELETE /api/events/:id — 删除活动
-router.delete('/:id', async (req, res, next) => {
+router.delete('/:id', requireManager, async (req, res, next) => {
   try {
     const [result] = await pool.query('DELETE FROM events WHERE eventId = ?', [req.params.id]);
     if (!result.affectedRows) return res.status(404).json({ success: false, message: '未找到该活动' });
