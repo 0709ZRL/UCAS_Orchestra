@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const { getTokenFromReq } = require('../middleware/auth');
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'orchestra_secret_key_2026';
@@ -86,7 +87,8 @@ router.post('/register', async (req, res, next) => {
     const token = jwt.sign({ personalId, account, name }, JWT_SECRET, { expiresIn: '7d' });
     res.cookie('token', token, COOKIE_OPTIONS);
     res.cookie('userName', name, { ...COOKIE_OPTIONS, httpOnly: false });
-    res.status(201).json({ success: true, message: '注册成功', personalId, name });
+    // token 同时放入响应体，便于小程序等外部程序直接保存（无需解析 Set-Cookie）
+    res.status(201).json({ success: true, message: '注册成功', personalId, name, token });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: '该账号已被注册' });
     next(err);
@@ -112,17 +114,26 @@ router.post('/login', async (req, res, next) => {
     );
     res.cookie('token', token, COOKIE_OPTIONS);
     res.cookie('userName', user.name, { ...COOKIE_OPTIONS, httpOnly: false });
-    res.json({ success: true, message: '登录成功', name: user.name });
+    // token 同时放入响应体，便于小程序等外部程序直接保存（无需解析 Set-Cookie）
+    res.json({ success: true, message: '登录成功', name: user.name, token });
   } catch (err) { next(err); }
 });
 
-// GET /api/auth/me — 获取当前登录用户
-router.get('/me', (req, res, next) => {
+// GET /api/auth/me — 获取当前登录用户的完整个人信息（不含密码）
+// 支持 Cookie 与 Authorization: Bearer（小程序无法带 Cookie）
+router.get('/me', async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
+    const token = getTokenFromReq(req);
     if (!token) return res.json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
-    res.json({ success: true, data: { personalId: decoded.personalId, account: decoded.account, name: decoded.name } });
+    const [rows] = await pool.query(
+      `SELECT personalId, account, name, gender, institute, grade, campus, section, job,
+              isManager, managerJob, instrument, isMaster, avatarhash, isOrchestraMember
+       FROM persons WHERE personalId = ?`,
+      [decoded.personalId]
+    );
+    if (!rows.length) return res.json({ success: false, message: '用户不存在' });
+    res.json({ success: true, data: rows[0] });
   } catch (err) {
     res.clearCookie('token'); res.clearCookie('userName');
     return res.json({ success: false, message: '登录已过期' });
@@ -160,7 +171,7 @@ router.post('/forgot', async (req, res, next) => {
 // PUT /api/auth/password — 登录状态下修改密码（需验证原密码）
 router.put('/password', async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
+    const token = getTokenFromReq(req);
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     let decoded;
     try { decoded = jwt.verify(token, JWT_SECRET); }
