@@ -1,11 +1,8 @@
 const express = require('express');
 const pool = require('../db');
-const { loadUser, requireManager } = require('../middleware/auth');
 const router = express.Router();
 
-router.use(loadUser);
-
-// GET /api/rooms — 琴房列表（支持 campus 过滤，公开）
+// GET /api/rooms — 琴房列表（支持 campus 过滤）
 router.get('/', async (req, res, next) => {
   try {
     const { campus } = req.query;
@@ -18,8 +15,8 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/rooms — 新增琴房（仅管理员）
-router.post('/', requireManager, async (req, res, next) => {
+// POST /api/rooms — 新增琴房
+router.post('/', async (req, res, next) => {
   try {
     const { roomId, campus, name, description } = req.body;
     if (!roomId || !campus || !name) {
