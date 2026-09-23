@@ -7,6 +7,134 @@
 
 ---
 
+# ⭐ 只改「琴房预约」功能的 Prompt（最常用，直接复制这段）
+
+```text
+请修改微信小程序里的「琴房预约」功能。后端已完成，禁止修改后端代码，
+只改小程序端与琴房预约相关的文件（pages/rooms 下的 js/wxml/wxss，以及需要的 utils）。
+
+================================================================
+一、接口（Base URL: https://zzzrrll.xin，前缀 /api）
+================================================================
+所有需要身份的请求都要带请求头：Authorization: Bearer <token>
+（小程序不能用 Cookie；token 由 POST /api/auth/login 返回，存在 wx.getStorageSync('token')）
+响应统一格式：{ success, data?, message?, total? }；401 = 未登录需重新登录。
+
+【0】取当前用户身份（决定 UI 怎么显示）
+GET /api/auth/me
+→ data: { personalId, name, job, isManager, isOrchestraMember, ... }
+  job: 0=普通成员 1=声部长 2=琴房负责人 3=发展成员
+
+【1】琴房列表
+GET /api/rooms
+→ data: [{ roomId:"玉泉路琴房", campus:"玉泉路琴房", name:"玉泉路琴房", description:null }]
+
+【2】按日期范围查预约（周课表）
+GET /api/reservations?roomId=<琴房>&dateFrom=2026-09-21&dateTo=2026-09-27
+→ data: [{
+    id: 33, roomId:"玉泉路琴房", bookerId:"PMU...", bookerName:"小赵",
+    date:"2026-09-23",            // 已是 YYYY-MM-DD 本地字符串
+    startTime:"10:00", endTime:"11:00",   // 已是 HH:mm 本地字符串
+    participants:[{ personalId:"PMU...", name:"小赵" }],
+    createdAt:"2026-09-23T07:22:10.000Z"  // ⚠️ UTC，显示要 +8h
+  }]
+  注意：roomId 含中文，拼 URL 时用 encodeURIComponent。
+
+【3】创建预约
+POST /api/reservations
+body: { roomId, date:"2026-09-25", startTime:"19:00", endTime:"20:00",
+        participants:["PMU...","PMU..."],
+        roomPassword:"8912" }        // 仅 job===3 需要
+规则：
+  - 营业时间 07:00–22:30，endTime 必须 > startTime，不可跨天
+  - 每笔最多 6 人（含主预约人，后端会自动把你加进 participants）
+  - 时间段冲突 → 409 { message:"该时间段已被占用，请选择其他时间" }
+  - 管理员(isManager=1)/琴房负责人(job=2) 可覆盖冲突
+  - 仅发展成员(job=3) 需要 roomPassword（琴房负责人设置的四位数字）：
+      · 没传 → 400 { message:"请输入预约密码", needPassword:true }
+      · 传错 → 403 { message:"预约密码错误，请联系琴房负责人获得预约密码", needPassword:true }
+      · 正式成员与管理员不需要密码，传了也会被忽略
+
+【4】修改 / 取消预约
+PUT    /api/reservations/:id     body: { startTime, endTime, participants }
+DELETE /api/reservations/:id
+权限：
+  - 管理员、琴房负责人：可操作任何人的预约，不受时间规则限制
+  - 其他用户：仅主预约人可改/删自己的预约
+      · 预约已结束 → 不可改、不可删
+      · 预约进行中 → 只能改 endTime
+
+【5】预约密码（仅琴房负责人 job===2 或 isManager===1）
+GET /api/reservations/password   → { success:true, data:{ password:"8912" } }
+                非琴房负责人/管理员调用返回 403（前端要静默处理，不弹错）
+PUT /api/reservations/password   body: { password:"5678" }
+                必须是 4 位数字，否则 400 { message:"预约密码必须是 4 位数字" }
+
+【6】参与人搜索
+GET /api/persons/search?q=<姓名或personId>
+→ data: [{ personalId, name, isOrchestraMember }]
+  isOrchestraMember=0 的显示「(非成员)」并二次确认再添加
+
+================================================================
+二、页面要实现的东西
+================================================================
+[p1] 选琴房：从 /api/rooms 生成选择器，默认第一间
+[p2] 周视图：按周展示该琴房的预约，顶部 ← 本周 → +「回到本日」
+     · dateFrom/dateTo 取该周的周一/周日
+     · 移动端建议「按天列表」而不是画完整时间轴网格
+     · 每个预约块显示：时间段 + 预约人姓名；点开进详情
+     · 已结束的块置灰，进行中的高亮
+[p3] 「＋ 预约」表单：日期、开始时间、结束时间、参与人
+     · 时间选择器限制 07:00–22:30；结束时间必须晚于开始时间（前端先校验）
+     · 参与人默认是自己（不可删），可搜索添加，最多 6 人
+     · ⚠️ 当前用户 job===3（发展成员）时，多出「🔑 预约密码（4 位数字）」输入框：
+        - input type="number" maxlength="4"，并过滤非数字字符
+        - 前端先校验 /^\d{4}$/，不合法提示「请输入 4 位数字预约密码」
+        - 把它作为 roomPassword 提交
+        - 提交失败时，如果返回的 message 含「预约密码错误」，toast 该 message
+          并额外提示「请联系琴房负责人获得预约密码」
+     · job 为 0/1/2 或 isManager=1 时不显示该输入框
+[p4] 详情面板/弹层：状态（未开始/进行中/已结束）、日期、时间、预约人、参与人、创建时间(+8h)
+     底部按钮按权限显示：
+       · 管理员/琴房负责人 → 任何人预约都显示「修改」「取消」
+       · 主预约人 → 未结束才显示「修改」「取消」；进行中只能改结束时间
+         （按钮文案：未开始 →「✏️ 修改预约」；进行中 →「⏰ 修改结束时间」）
+       · 其他人 / 已结束 → 置灰不可点，显示「已结束」
+     · 管理员/琴房负责人操作别人的预约时，给一行小字提示
+       「🔑 琴房负责人权限：可修改/删除该预约」或「👑 管理员权限：可修改/删除该预约」
+[p5] 取消预约前必须 wx.showModal 二次确认
+[p6] 琴房负责人/管理员额外卡片（页面顶部）：
+     「🔑 您设置的预约密码为：XXXX」+【修改预约密码】按钮
+       · 进页面时调 GET /api/reservations/password；403 就整块隐藏，不要报错
+       · 点按钮弹输入框，只能输 4 位数字；前端校验 /^\d{4}$/，否则提示「预约密码必须是 4 位数字」
+       · 提交 PUT /api/reservations/password，成功后原地更新卡片上的数字 + toast「预约密码已更新」
+[p7] 任何新增/修改/取消成功后，都要重新拉取当周数据刷新课表
+[p8] 空状态、loading、（可选）下拉刷新
+
+================================================================
+三、硬性要求
+================================================================
+1. ⚠️ 时区：GET /api/reservations 返回的 date / startTime / endTime 已经是本地字符串，
+   绝对不要再做 +8h；只有 createdAt 这类完整 DATETIME 需要 +8h 显示：
+   function fmtCN(v){ const d=new Date(v); if(isNaN(d)) return String(v).slice(0,16).replace('T',' ');
+     const bj=new Date(d.getTime()+8*3600*1000); const p=n=>String(n).padStart(2,'0');
+     return `${bj.getUTCFullYear()}-${p(bj.getUTCMonth()+1)}-${p(bj.getUTCDate())} ${p(bj.getUTCHours())}:${p(bj.getUTCMinutes())}`; }
+2. 所有请求走统一的 request 封装（自动带 Bearer token；401 清 token 并 reLaunch 登录页）
+3. 接口报错时把后端返回的 message 原样 toast 出来，不要吞掉
+4. 不要改动首页、活动、我的等其它页面
+5. 代码加中文注释
+
+================================================================
+四、输出
+================================================================
+只输出与琴房预约相关的**完整文件**代码（方便我整文件替换），例如：
+- pages/rooms/rooms.js / rooms.wxml / rooms.wxss / rooms.json
+- utils/request.js（如需新增或修改）
+最后用 3~5 条说明改了哪些点。
+```
+
+---
+
 ## ① 通用约束（每次都要带上）
 
 ```text
