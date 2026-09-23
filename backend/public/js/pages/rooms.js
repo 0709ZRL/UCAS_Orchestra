@@ -841,7 +841,7 @@ async function submitReservation() {
 
   const body = { roomId: _currentRoomId, date, startTime: start, endTime: end, participants };
 
-  // 发展成员预约需校验四位预约密码
+  // 预约密码：仅发展成员（job=3）需要；乐团正式成员（普通成员/声部长/琴房负责人）与管理员不弹密码框
   if (!_editingId && _isDevMember) {
     const pwdInput = document.getElementById('rv-pwd');
     const pwd = pwdInput ? (pwdInput.value || '').trim() : '';

@@ -177,7 +177,9 @@ router.post('/', async (req, res, next) => {
 
     const priv = await getUserPrivileges(user.personalId);
 
-    // 发展成员（job=3）预约需输入琴房负责人提供的四位预约密码
+    // 预约密码校验：**仅**发展成员（job=3）需要
+    // 乐团正式成员（普通成员/声部长/琴房负责人）与管理员一律不需要密码，
+    // 即使前端误传 roomPassword 也直接忽略
     if (priv.isDevMember) {
       const saved = await getReservationPassword();
       const input = String(roomPassword || '').trim();
