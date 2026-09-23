@@ -449,17 +449,41 @@ zip 内文件命名：`乐谱名-声部.pdf`（总谱无声部后缀；重名自
 
 **GET /api/instruments/badge?name=二胡** — 返回徽章图片（302 重定向到 `/instruments/<规范名>.png`，供 `<img src>` 直接引用）
 - 未匹配返回 `404`
+- **支持多乐器**：`name` 里可用分隔符分开多个乐器；默认取第 1 个匹配，可用 `index`（从 0 开始）指定
 ```json
 // 302 → Location: /instruments/%E8%83%A1%E7%90%B4.png
+// GET /api/instruments/badge?name=钢琴；大提琴&index=1 → /instruments/大提琴.png
 ```
 
 **GET /api/instruments/badge-info?name=二胡** — 返回映射信息 JSON（推荐小程序先查此接口判断是否匹配）
+
+> **多乐器分隔符**（可混用）：中文分号 `；`、英文分号 `;`、中文逗号 `，`、英文逗号 `,`、顿号 `、`、空格（含全角空格）
+> 例：`二胡; 中胡`、`钢琴；大提琴`、`古筝;大阮`、`二胡,中胡`、`二胡 中胡`
+> 整串优先匹配（如 `中 胡` 会整体识别为「中胡」而不是拆成两个字）。
+
 ```json
-{ "success":true, "matched":true, "input":"二胡", "badge":"胡琴",
-  "url":"/instruments/%E8%83%A1%E7%90%B4.png",
+// 单乐器
+{ "success":true, "matched":true, "input":"二胡", "count":1,
+  "badge":"胡琴", "badges":["胡琴"], "url":"/instruments/%E8%83%A1%E7%90%B4.png",
+  "urls":["/instruments/%E8%83%A1%E7%90%B4.png"],
+  "items":[{ "input":"二胡", "badge":"胡琴", "url":"..." }],
+  "unmatched":[],
   "fullUrl":"/api/instruments/badge?name=%E4%BA%8C%E8%83%A1" }
+
+// 多乐器（钢琴；大提琴）
+{ "success":true, "matched":true, "input":"钢琴；大提琴", "count":2,
+  "badges":["钢琴","大提琴"],
+  "urls":["/instruments/%E9%92%A2%E7%90%B4.png","/instruments/%E5%A4%A7%E6%8F%90%E7%90%B4.png"],
+  "items":[{ "input":"钢琴", "badge":"钢琴", "url":"..." },{ "input":"大提琴", "badge":"大提琴", "url":"..." }],
+  "unmatched":[],
+  "badge":"钢琴", "url":"/instruments/%E9%92%A2%E7%90%B4.png" }
 ```
-未匹配：`{ "success":false, "matched":false, "input":"未知", "message":"未找到乐器「未知」对应的徽章" }`
+- `badges`/`urls`：全部匹配到的规范名与图片地址（去重、保序）
+- `items`：逐项明细（`input` → `badge`）
+- `unmatched`：未能匹配的片段（如 `大提琴;贝斯` → `["贝斯"]`），便于提示用户
+- 兼容旧用法：`badge`/`url` 仍返回第 1 个匹配
+
+未匹配：`{ "success":false, "matched":false, "input":"未知", "count":0, "badges":[], "urls":[], "unmatched":["未知"], "message":"未找到乐器「未知」对应的徽章" }`
 
 **GET /api/instruments/list** — 全部可用规范徽章名列表 `{ success:true, data:["上低音号","中提琴",...] }`
 
