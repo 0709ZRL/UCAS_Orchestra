@@ -7,6 +7,151 @@
 
 ---
 
+# ⭐ 只改「小程序登录页：注册重名拦截 + 修改密码」的 Prompt
+
+```text
+请修改微信小程序的登录/注册相关页面，补上「修改密码」能力，并处理好注册时的
+账号重复 / 姓名重复。后端已完成，禁止修改后端代码。
+
+涉及文件（按需修改/新增）：
+- pages/login/login.js / .wxml / .wxss / .json
+- pages/register/register.*（如果有独立的注册页）
+- pages/forgot/forgot.*（忘记密码页）
+- pages/profile/profile.*（我的 → 修改密码 入口）
+- utils/request.js
+
+================================================================
+一、现有接口设计
+================================================================
+Base URL: https://zzzrrll.xin    前缀: /api
+认证：小程序不能用 Cookie，必须用 Header: Authorization: Bearer <token>
+响应统一：{ success, data?, message?, total? }；401 = 未登录/登录过期
+
+──────────── 【A】注册（正式成员） ────────────
+POST /api/auth/register
+body: { account, password, name, gender, institute, grade, campus, section, instrument }
+      (account / password / name 必填)
+成功 201: { success:true, message:"注册成功", personalId, name, token }
+失败：
+  409 { success:false, message:"该账号已被注册" }
+  409 { success:false, message:"该姓名已注册账号，请勿重复创建" }
+  409 { success:false, message:"该姓名已在成员名单中，请联系管理员开通登录账号" }
+  400 { success:false, message:"账号、密码、姓名为必填项" }
+
+⚠️ 关键点：系统**不允许同名注册**。只要库里已存在同名的人就拒绝，
+   即使那个人是管理员在后台手工添加的（没有登录账号）。
+   这三种 message 要**原样**展示给用户，不要自己改写。
+
+⚠️ 没有「提前检查姓名/账号是否可用」的接口，
+   只能在提交后根据返回的 message 提示用户。
+
+──────────── 【B】注册（发展成员） ────────────
+POST /api/auth/register-dev
+body: { account, password, name, gender, institute, grade, campus, instrument }
+      （没有 job / isManager 等字段，后端强制写死 job=3）
+成功 201: { success:true, message:"注册成功", personalId, name, token }
+失败：
+  409 同上三种 message
+  400 { success:false, message:"账号、密码、姓名为必填项" }
+  400 { success:false, message:"密码长度不能少于 6 位" }
+
+──────────── 【C】登录 ────────────
+POST /api/auth/login
+body: { account, password }
+成功: { success:true, message:"登录成功", name, token }
+失败: 401 { success:false, message:"账号或密码错误" }
+      400 { success:false, message:"账号和密码为必填项" }
+
+──────────── 【D】修改密码（已登录，需原密码） ────────────
+PUT /api/auth/password
+Header: Authorization: Bearer <token>
+body: { oldPassword, newPassword }
+成功: { success:true, message:"密码修改成功" }
+失败:
+  400 { success:false, message:"原密码错误" }
+  400 { success:false, message:"新密码长度不能少于 6 位" }
+  400 { success:false, message:"原密码和新密码为必填项" }
+  401 { success:false, message:"未登录" / "登录已过期" }
+说明：修改成功后旧 token 依然有效，不需要重新登录。
+
+──────────── 【E】忘记密码 / 未登录重置（账号 + 真实姓名） ────────────
+POST /api/auth/forgot
+body: { account, name, newPassword }
+成功: { success:true, message:"密码已重置，请使用新密码登录" }
+失败:
+  404 { success:false, message:"账号不存在" }
+  400 { success:false, message:"账号与姓名不匹配，无法重置" }
+  400 { success:false, message:"新密码长度不能少于 6 位" }
+  400 { success:false, message:"账号、姓名、新密码为必填项" }
+说明：不返回 token，成功后要引导用户用新密码回登录页。
+
+================================================================
+二、要实现的界面与交互
+================================================================
+
+【1】登录页 pages/login
+    - 账号、密码 + 【登 录】
+    - 底部链接：「注册新账号」→ 注册页；「忘记密码？」→ 忘记密码页
+    - 底部小字：「🌱 发展成员入口」→ pages/dev
+    - 密码输入框加「显示/隐藏密码」小眼睛
+    - 登录中给按钮 loading + 禁止重复点击
+    - 登录成功后：存 token → GET /api/auth/me → 存用户信息到 globalData
+      → job===3 就 reLaunch 到琴房页，否则 switchTab 到首页
+
+【2】注册页 pages/register（正式成员）
+    - 字段：账号、密码、确认密码、真实姓名、性别、学院、年级、校区、乐器
+    - 前端校验（提交前）：
+        · 账号、密码、姓名必填
+        · 密码至少 6 位
+        · 两次密码一致
+    - ⚠️ 姓名重名只能在提交后判断：
+        提交 → 若 res.message 命中下面任一，就在「真实姓名」输入框下方
+        用红色小字显示该 message，并把焦点滚到姓名那一栏：
+          "该姓名已注册账号，请勿重复创建"
+          "该姓名已在成员名单中，请联系管理员开通登录账号"
+        若 message 是 "该账号已被注册"，则提示在「账号」那一栏下方。
+    - 其它错误统一用 wx.showToast({ icon:'none' }) 展示 message
+    - 成功后：存 token → 进首页
+
+【3】忘记密码页 pages/forgot
+    - 字段：账号、真实姓名、新密码、确认新密码
+    - 前端校验：都必填；新密码 ≥6 位；两次一致
+    - 提交 POST /api/auth/forgot
+    - 成功后：wx.showModal 提示「密码已重置，请使用新密码登录」→ 返回登录页，
+      并把刚才填的账号自动回填进登录页的账号输入框
+
+【4】修改密码页 pages/change-password（新增，「我的」里加入口）
+    - 字段：原密码、新密码、确认新密码
+    - 前端校验：都必填；新密码 ≥6 位；新密码 ≠ 原密码；两次一致
+    - 提交 PUT /api/auth/password（自动带 Bearer token）
+    - 成功：toast「密码修改成功」→ 返回上一页
+    - 失败：
+        · "原密码错误" → 在「原密码」输入框下方红色提示，并清空原密码
+        · 401 → 清 token，reLaunch 登录页
+        · 其它 → toast message
+    - 建议加「忘记原密码？用账号 + 姓名重置」→ 跳 pages/forgot
+
+================================================================
+三、硬性要求
+================================================================
+1. 所有请求走统一的 request 封装（自动带 Bearer token；401 清 token 并 reLaunch 登录页）
+2. **绝对不要吞掉后端返回的 message**，必须原样展示（这些文案是给人看的唯一提示）
+3. 提交按钮要防重复点击（loading 中禁止再次提交）
+4. 不要改动首页、琴房、活动等其它页面
+5. 代码加中文注释
+
+================================================================
+四、输出
+================================================================
+只输出被修改/新增页面的**完整文件**代码：
+- pages/login/*  pages/register/*  pages/forgot/*  pages/change-password/*
+- app.json（注册新页面路由所需）
+- utils/request.js（如需调整）
+最后用 3~5 条说明改了哪些点。
+```
+
+---
+
 # ⭐ 只改「琴房预约」功能的 Prompt（最常用，直接复制这段）
 
 ```text

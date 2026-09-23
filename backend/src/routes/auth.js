@@ -58,8 +58,15 @@ const DEV_MEMBER_JOB = 3;
 async function checkAccountNameFree(account, name) {
   const [dup] = await pool.query('SELECT personalId FROM persons WHERE account = ?', [account]);
   if (dup.length) return '该账号已被注册';
-  const [dupName] = await pool.query('SELECT personalId FROM persons WHERE name = ? AND account <> \'\'', [name]);
-  if (dupName.length) return '该姓名已存在账号，请勿重复创建';
+  // 姓名重复检查：只要存在同名人员就拒绝注册
+  // 注意：不能加 account <> '' 条件——成员管理手工新增的成员 account 为空，
+  // 若排除这类记录，同名的人就能重复注册（历史漏洞）
+  const [dupName] = await pool.query('SELECT personalId, account FROM persons WHERE name = ? LIMIT 1', [name]);
+  if (dupName.length) {
+    return dupName[0].account
+      ? '该姓名已注册账号，请勿重复创建'
+      : '该姓名已在成员名单中，请联系管理员开通登录账号';
+  }
   return null;
 }
 
