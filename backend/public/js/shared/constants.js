@@ -8,7 +8,7 @@ const fields = {
     { key:'grade', label:'年级' },
     { key:'campus', label:'校区', type:'select', options:[{v:0,t:'中关村校区'},{v:1,t:'玉泉路校区'},{v:3,t:'雁栖湖校区'},{v:4,t:'京内其他地区'},{v:5,t:'京外其他地区'}], default:0 },
     { key:'section', label:'声部', type:'select', options:[{v:0,t:'民族管乐声部'},{v:1,t:'弹拨一组'},{v:2,t:'弹拨二组'},{v:3,t:'胡琴声部'},{v:4,t:'提琴声部'},{v:5,t:'西洋木管声部'},{v:6,t:'西洋铜管声部'},{v:7,t:'低音声部'},{v:8,t:'钢琴声部'},{v:9,t:'打击声部'},{v:10,t:'无声部'}], default:0 },
-    { key:'job', label:'职位', type:'select', options:[{v:0,t:'普通成员'},{v:1,t:'声部长'}], default:0 },
+    { key:'job', label:'职位', type:'select', options:[{v:0,t:'普通成员'},{v:1,t:'声部长'},{v:2,t:'琴房负责人'},{v:3,t:'发展成员'}], default:0 },
     { key:'isManager', label:'是否管理人员', type:'select', options:[{v:0,t:'否'},{v:1,t:'是'}], default:0 },
     { key:'managerJob', label:'管理职责', type:'select', options:[{v:0,t:'普通干事'},{v:1,t:'团长'},{v:2,t:'业务副团长'},{v:3,t:'人事副团长'},{v:4,t:'后勤组组长'},{v:5,t:'宣传组组长'},{v:6,t:'学生指挥'},{v:7,t:'指挥助理'},{v:8,t:'指挥'},{v:9,t:'谱务'}], default:0 },
     { key:'instrument', label:'乐器（多个用分号分隔）' },
@@ -56,7 +56,7 @@ const PROFILE_MAP = {
   gender:{0:'女',1:'男'},
   campus:{0:'中关村',1:'玉泉路',3:'雁栖湖',4:'京内其他',5:'京外其他'},
   section:{0:'民族管乐',1:'弹拨一组',2:'弹拨二组',3:'胡琴',4:'提琴',5:'西洋木管',6:'西洋铜管',7:'低音',8:'钢琴',9:'打击',10:'无声部'},
-  job:{0:'普通成员',1:'声部长'},
+  job:{0:'普通成员',1:'声部长',2:'琴房负责人',3:'发展成员'},
   isManager:{0:'否',1:'是'},
   isMaster:{0:'否',1:'是'},
   managerJob:{0:'普通干事',1:'团长',2:'业务副团长',3:'人事副团长',4:'后勤组长',5:'宣传组长',6:'学生指挥',7:'指挥助理',8:'指挥',9:'谱务'}
@@ -65,6 +65,12 @@ const PROFILE_MAP = {
 // 文章类型
 const TYPE_LABELS = ['排练通知','演出通知','乐团新闻','乐谱下载'];
 const TYPE_TAGS = ['t0','t1','t2','t3'];
+
+// 职位（与后端 persons.job 一致）
+const JOB_PLAIN = 0;          // 普通成员
+const JOB_SECTION_LEADER = 1; // 声部长
+const JOB_ROOM_MANAGER = 2;   // 琴房负责人（非管理员，可任意增删改琴房预约）
+const JOB_DEV_MEMBER = 3;     // 发展成员（仅可看琴房/个人信息，预约需四位密码）
 
 // 搜索字段配置（每个页面）
 function getSearchFields(page) {

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS persons (
   grade VARCHAR(32),
   campus TINYINT NOT NULL DEFAULT 0 COMMENT '0=中关村 1=玉泉路 3=雁栖湖 4=京内其他 5=京外其他',
   section TINYINT NOT NULL DEFAULT 0 COMMENT '0=民族管乐 1=弹拨一组 2=弹拨二组 3=胡琴 4=提琴 5=西洋木管 6=西洋铜管 7=低音 8=钢琴 9=打击 10=无声部',
-  job TINYINT NOT NULL DEFAULT 0 COMMENT '0=普通成员 1=声部长',
+  job TINYINT NOT NULL DEFAULT 0 COMMENT '0=普通成员 1=声部长 2=琴房负责人 3=发展成员',
   isManager TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0=否 1=是',
   managerJob TINYINT NOT NULL DEFAULT 0 COMMENT '0=普通干事 1=团长 2=业务副团长 3=人事副团长 4=后勤组长 5=宣传组长 6=学生指挥 7=指挥助理 8=指挥',
   instrument VARCHAR(256) COMMENT '多个乐器用分号分隔',
@@ -114,3 +114,13 @@ INSERT IGNORE INTO rooms (roomId, campus, name, description) VALUES
 ('玉泉路琴房', '玉泉路琴房', '玉泉路琴房', NULL),
 ('雁栖湖琴房', '雁栖湖琴房', '雁栖湖琴房', NULL),
 ('奥运村琴房', '奥运村琴房', '奥运村琴房', NULL);
+
+-- 应用配置（键值对）
+-- reservation_password：琴房负责人设置的四位预约密码，发展成员预约琴房时需输入
+CREATE TABLE IF NOT EXISTS app_settings (
+  `key` VARCHAR(64) NOT NULL COMMENT '配置键',
+  `value` VARCHAR(255) NOT NULL COMMENT '配置值',
+  updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT IGNORE INTO app_settings (`key`, `value`) VALUES ('reservation_password', '8912');

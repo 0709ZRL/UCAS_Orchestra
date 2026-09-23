@@ -28,17 +28,36 @@ function saveMe(me) {
   } catch (e) { /* 忽略 */ }
 }
 
+// 发展成员可访问的页面（其余页面直接跳走）
+const DEV_ALLOWED_PATHS = ['/rooms', '/profile'];
+
 // 应用角色界面：按当前用户角色隐藏无权限的导航项；无权限的页面直接跳走（不显示界面/提示）
 function applyRoleUI() {
   const me = window._me || {};
   const isManager = me.isManager == 1;
   const isConductor = me.managerJob == 6;
-  // 维护 <html> 的 is-manager / is-conductor 类：与 shared.css 的 html:not(.is-manager) 等规则协同，保证导航隐藏/显示一致
+  const isDev = me.job == 3;            // 发展成员
+  // 维护 <html> 的 is-manager / is-conductor / is-dev 类：与 shared.css 规则协同，保证导航隐藏/显示一致
   const root = document.documentElement;
+  root.classList.toggle('is-dev', isDev);
   if (isManager) root.classList.add('is-manager');
   else root.classList.remove('is-manager');
   if (isConductor) root.classList.add('is-conductor');
   else root.classList.remove('is-conductor');
+
+  // 发展成员：仅保留「琴房预约」与「个人信息」，其余导航隐藏
+  if (isDev) {
+    document.querySelectorAll('.sidebar a').forEach(a => {
+      const href = a.getAttribute('href') || '';
+      if (!DEV_ALLOWED_PATHS.includes(href)) a.style.display = 'none';
+    });
+    // 访问了无权限页面 → 直接跳到琴房预约
+    if (!DEV_ALLOWED_PATHS.includes(location.pathname)) {
+      location.replace('/rooms');
+    }
+    return;
+  }
+
   // 文章管理/活动管理仅管理员可见（/events 重定向到 /articles）
   document.querySelectorAll('a[href="/articles"], a[href="/events"]').forEach(a => {
     a.style.display = isManager ? '' : 'none';
@@ -64,6 +83,14 @@ function applyRoleUI() {
     if (!saved) return;
     const me = JSON.parse(saved);
     window._me = me;
+    if (me.job == 3) {
+      document.documentElement.classList.add('is-dev');
+      document.querySelectorAll('.sidebar a').forEach(a => {
+        const href = a.getAttribute('href') || '';
+        if (!DEV_ALLOWED_PATHS.includes(href)) a.style.display = 'none';
+      });
+      return;
+    }
     if (me.isManager == 1) {
       document.documentElement.classList.add('is-manager');
     } else {

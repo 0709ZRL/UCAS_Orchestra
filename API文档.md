@@ -18,7 +18,7 @@
 | 出勤管理 | 报名/签到记录管理、统计大屏、Excel 导出、声部明细 | 查看：所有人；增删：管理员/声部长（本声部） |
 | 活动打卡 | 基于地理位置（10 米内）现场打卡 | 所有人 |
 | 活动报名 | 报名/取消报名、我的报名列表 | 所有人 |
-| 琴房预约 | 琴房列表、按周查看课表、创建/修改/取消预约 | 所有人（非管理员仅操作自己的预约） |
+| 琴房预约 | 琴房列表、按周查看课表、创建/修改/取消预约 | 所有人（非特权用户仅操作自己的预约） |
 | 乐谱管理 | 乐谱上传/替换/删除/下载（PDF） | 查看下载：所有人；上传删除：管理员/声部长（本声部分谱） |
 | 后勤管理 | 物品登记（含图片）、查询 | 所有登录用户可管理 |
 | 地理编码 | 地名 → 经纬度搜索（OpenStreetMap Nominatim） | 所有人 |
@@ -62,12 +62,16 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 | 409 | 冲突（重复报名、时间被占等） |
 
 ### 2.4 角色与权限
-| 角色 | 判定字段 |
-|---|---|
-| 管理员 | `persons.isManager = 1` |
-| 声部长 | `persons.job = 1` |
-| 学生指挥 | `persons.managerJob = 6` |
-| 普通成员 | 其他 |
+| 角色 | 判定字段 | 说明 |
+|---|---|---|
+| 管理员 | `persons.isManager = 1` | 全部权限 |
+| 声部长 | `persons.job = 1` | 本声部成员/乐谱相关增删改 |
+| **琴房负责人** | `persons.job = 2` | **非管理员**；可对琴房预约任意增删改查（含他人预约、绕过时间规则与冲突），可查看/修改预约密码 |
+| **发展成员** | `persons.job = 3` | 仅可访问「琴房预约」与「个人信息」页面；`isOrchestraMember=0`，不计入乐团成员统计；预约琴房需输入琴房负责人的四位密码；只能通过 `/dev` 入口注册 |
+| 学生指挥 | `persons.managerJob = 6` | 排练记录 |
+| 普通成员 | 其他 | 只读 + 预约琴房 |
+
+> 职位（`job`）与管理身份（`isManager`/`managerJob`）**仅管理员**可在成员管理中修改；声部长无法自行提权。
 
 ### 2.5 分页参数
 列表接口通用 `page`（页码，默认 1）与 `limit`（每页条数，各接口默认值不同）。
@@ -90,7 +94,7 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 | grade | VARCHAR(32) | 年级 |
 | campus | TINYINT | 0=中关村 1=玉泉路 3=雁栖湖 4=京内其他 5=京外其他 |
 | section | TINYINT | 0=民族管乐 1=弹拨一组 2=弹拨二组 3=胡琴 4=提琴 5=西洋木管 6=西洋铜管 7=低音 8=钢琴 9=打击 10=无声部 |
-| job | TINYINT | 0=普通成员 1=声部长 |
+| job | TINYINT | 0=普通成员 1=声部长 2=琴房负责人 3=发展成员 |
 | isManager | TINYINT | 0=否 1=是（管理员） |
 | managerJob | TINYINT | 0=普通干事 1=团长 2=业务副团长 3=人事副团长 4=后勤组长 5=宣传组长 6=学生指挥 7=指挥助理 8=指挥 9=谱务 |
 | instrument | VARCHAR(256) | 乐器（分号分隔） |
@@ -201,6 +205,17 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 ```
 成功：`201 { success:true, personalId, name, token }`
 
+> **职位白名单**：公开注册的 `job` 仅允许 `0`（普通成员）/ `1`（声部长），传入其他值一律按 `0` 处理。`job=2`（琴房负责人）、`job=3`（发展成员）无法通过本接口自助注册。
+
+**POST /api/auth/register-dev** — 发展成员注册（`/dev` 入口专用）
+```json
+{ "account":"dev1","password":"123456","name":"李四","gender":1,
+  "institute":"软件所","grade":"研一","campus":0,"instrument":"二胡" }
+```
+- 强制写入 `job=3`（发展成员）、`isManager=0`、`managerJob=0`、`isMaster=0`、`isOrchestraMember=0`；`section` 默认 `10`（无声部）
+- 密码少于 6 位返回 `400`；账号/姓名重复返回 `409`
+- 成功：`201 { success:true, personalId, name, token }`
+
 **POST /api/auth/login** — 登录
 ```json
 { "account":"test","password":"123456" }
@@ -231,9 +246,10 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 ### 4.2 成员 `/api/persons`
 
 **GET /api/persons** — 列表
-参数：`name`(模糊) `section` `campus` `isManager` `isMaster` `page` `limit`(默认50)
+参数：`name`(模糊) `section` `campus` `isManager` `isMaster` `job` `page` `limit`(默认 50)
+- **默认排除发展成员（`job=3`）**，以免与正式成员混在一起；传 `job=3` 可单独获取发展成员列表
 
-**GET /api/persons/stats** — 统计（总数/男女/声部/校区分布，供大屏）
+**GET /api/persons/stats** — 统计（总数/男女/声部/校区分布，供大屏）；**不含发展成员**
 
 **GET /api/persons/search?q=姓名或ID** — 搜索（用于预约参与者选择），返回 `[{personalId,name,isOrchestraMember}]`
 
@@ -245,6 +261,7 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 ```
 
 **PUT /api/persons/:personalId** — 更新（管理员任意；声部长仅本声部成员且不可转调其他声部）
+- **`job` / `isManager` / `managerJob` 仅管理员可修改**：声部长提交与当前值不同的角色值返回 `403 { message:"仅管理员可修改职位/管理身份" }`（传入与当前值相同则忽略）
 
 **DELETE /api/persons/:personalId** — 删除（管理员任意；声部长仅本声部）
 
@@ -421,13 +438,28 @@ zip 内文件命名：`乐谱名-声部.pdf`（总谱无声部后缀；重名自
 **POST /api/reservations** — 创建（需登录）
 ```json
 { "roomId":"玉泉路琴房","date":"2026-08-05","startTime":"10:00","endTime":"11:00",
-  "participants":["PMRxxx"] }
+  "participants":["PMRxxx"], "roomPassword":"8912" }
 ```
-规则：07:00–22:30、结束>开始、不跨天、≤6 人；主预约人自动加入 participants；冲突返回 409；管理员可无视冲突（覆盖）。
+规则：07:00–22:30、结束>开始、不跨天、≤6 人；主预约人自动加入 participants；冲突返回 409；管理员/琴房负责人可无视冲突（覆盖）。
+
+> **发展成员（`job=3`）必须额外传 `roomPassword`**（琴房负责人设置的四位数字）：
+> - 未传 → `400 { success:false, message:"请输入预约密码", needPassword:true }`
+> - 错误 → `403 { success:false, message:"预约密码错误，请联系琴房负责人获得预约密码", needPassword:true }`
+> - 普通成员/管理员/琴房负责人预约**无需**密码
+
+**GET /api/reservations/password** — 查看当前预约密码（仅琴房负责人/管理员，其他 403）\
+返回 `{ success:true, data:{ password:"8912" } }`
+
+**PUT /api/reservations/password** — 修改预约密码（仅琴房负责人/管理员）
+```json
+{ "password":"5678" }
+```
+- **必须是 4 位数字**（正则 `^\d{4}$`），否则 `400 { message:"预约密码必须是 4 位数字" }`
+- 成功后返回 `{ success:true, message:"预约密码已更新", data:{password:"5678"} }`
 
 **GET /api/reservations/:id** — 详情
-**PUT /api/reservations/:id** — 修改（非管理员仅主预约人；进行中仅可改结束时间）
-**DELETE /api/reservations/:id** — 取消（非管理员仅主预约人，已结束不可取消）
+**PUT /api/reservations/:id** — 修改（管理员/琴房负责人可改任意；其他用户仅主预约人；普通用户进行中仅可改结束时间）
+**DELETE /api/reservations/:id** — 取消（管理员/琴房负责人可取消任意；其他用户仅主预约人，已结束不可取消）
 
 ---
 

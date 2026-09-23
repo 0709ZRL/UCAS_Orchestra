@@ -289,6 +289,19 @@ html:not(.is-manager) a[href="/events"]{display:none!important}
 /* ===== 角色导航防闪现：非学生指挥（<html> 无 is-conductor 类）默认隐藏排练记录入口 ===== */
 html:not(.is-conductor) a[href="/rehearsals"]{display:none!important}
 
+/* ===== 发展成员（job=3）：仅保留「琴房预约」与「个人信息」，其余导航全部隐藏 ===== */
+html.is-dev a[href="/home"],
+html.is-dev a[href="/persons"],
+html.is-dev a[href="/attendance"],
+html.is-dev a[href="/checkin"],
+html.is-dev a[href="/scores"],
+html.is-dev a[href="/scores-list"],
+html.is-dev a[href="/logistics"],
+html.is-dev a[href="/articles"],
+html.is-dev a[href="/events"],
+html.is-dev a[href="/my-registrations"],
+html.is-dev a[href="/rehearsals"]{display:none!important}
+
 /* ===== 排练记录卡片 ===== */
 .rehearsal-list{display:flex;flex-direction:column;gap:14px}
 .rehearsal-card{background:#fff;border:1px solid #eee;border-radius:10px;padding:16px 18px;box-shadow:0 1px 4px rgba(0,0,0,.04)}

@@ -78,6 +78,7 @@ const pageRoutes = {
   '/': 'home.html',
   '/login': 'login.html',
   '/register': 'register.html',
+  '/dev': 'dev.html',
   '/home': 'home.html',
   '/profile': 'profile.html',
   '/persons': 'persons.html',

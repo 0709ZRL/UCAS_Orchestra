@@ -18,15 +18,72 @@ function getUser(req) {
   } catch { return null; }
 }
 
-// 判断用户是否为管理员（isManager=1）
-async function isAdminUser(personalId) {
+// 读取用户的琴房相关权限
+//   isManager=1 或 job=2（琴房负责人）→ privileged：可任意管理预约
+//   job=3（发展成员）→ 预约时需输入琴房负责人设置的四位密码
+async function getUserPrivileges(personalId) {
   try {
-    const [rows] = await pool.query('SELECT isManager FROM persons WHERE personalId = ?', [personalId]);
-    return rows.length > 0 && rows[0].isManager == 1;
+    const [rows] = await pool.query('SELECT isManager, job, name, isOrchestraMember FROM persons WHERE personalId = ?', [personalId]);
+    if (!rows.length) return { exists: false, isManager: false, job: null, privileged: false, isDevMember: false };
+    const job = Number(rows[0].job);
+    const isManager = rows[0].isManager == 1;
+    return {
+      exists: true,
+      name: rows[0].name,
+      isOrchestraMember: rows[0].isOrchestraMember,
+      isManager,
+      job,
+      privileged: isManager || job === 2,
+      isDevMember: job === 3
+    };
   } catch (e) {
-    return false;
+    return { exists: false, isManager: false, job: null, privileged: false, isDevMember: false };
   }
 }
+
+// ===== 预约密码（琴房负责人设置，供发展成员预约时校验）=====
+const RESERVATION_PASSWORD_KEY = 'reservation_password';
+
+async function getReservationPassword() {
+  const [rows] = await pool.query('SELECT `value` FROM app_settings WHERE `key` = ?', [RESERVATION_PASSWORD_KEY]);
+  return rows.length ? rows[0].value : null;
+}
+
+// GET /api/reservations/password — 查看当前预约密码（仅琴房负责人/管理员）
+// 注意：必须定义在 /:id 之前
+router.get('/password', async (req, res, next) => {
+  try {
+    const user = getUser(req);
+    if (!user) return res.status(401).json({ success: false, message: '请先登录' });
+    const priv = await getUserPrivileges(user.personalId);
+    if (!priv.privileged) {
+      return res.status(403).json({ success: false, message: '仅琴房负责人可查看预约密码' });
+    }
+    const password = await getReservationPassword();
+    res.json({ success: true, data: { password } });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/reservations/password — 修改预约密码（仅琴房负责人/管理员；必须是 4 位数字）
+router.put('/password', async (req, res, next) => {
+  try {
+    const user = getUser(req);
+    if (!user) return res.status(401).json({ success: false, message: '请先登录' });
+    const priv = await getUserPrivileges(user.personalId);
+    if (!priv.privileged) {
+      return res.status(403).json({ success: false, message: '仅琴房负责人可修改预约密码' });
+    }
+    const { password } = req.body || {};
+    if (!/^\d{4}$/.test(String(password || ''))) {
+      return res.status(400).json({ success: false, message: '预约密码必须是 4 位数字' });
+    }
+    await pool.query(
+      'INSERT INTO app_settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)',
+      [RESERVATION_PASSWORD_KEY, String(password)]
+    );
+    res.json({ success: true, message: '预约密码已更新', data: { password: String(password) } });
+  } catch (err) { next(err); }
+});
 
 // 将 "HH:MM" / "HH:MM:SS" 归一化为 "HH:MM:SS"
 function normalizeTime(t) {
@@ -113,9 +170,23 @@ router.post('/', async (req, res, next) => {
     const user = getUser(req);
     if (!user) return res.status(401).json({ success: false, message: '请先登录' });
 
-    const { roomId, date, startTime, endTime, participants } = req.body;
+    const { roomId, date, startTime, endTime, participants, roomPassword } = req.body;
     if (!roomId || !date || !startTime || !endTime) {
       return res.status(400).json({ success: false, message: '参数不完整：roomId、date、startTime、endTime 必填' });
+    }
+
+    const priv = await getUserPrivileges(user.personalId);
+
+    // 发展成员（job=3）预约需输入琴房负责人提供的四位预约密码
+    if (priv.isDevMember) {
+      const saved = await getReservationPassword();
+      const input = String(roomPassword || '').trim();
+      if (!input) {
+        return res.status(400).json({ success: false, message: '请输入预约密码', needPassword: true });
+      }
+      if (!saved || input !== String(saved)) {
+        return res.status(403).json({ success: false, message: '预约密码错误，请联系琴房负责人获得预约密码', needPassword: true });
+      }
     }
 
     // 1. 日期校验
@@ -152,8 +223,8 @@ router.post('/', async (req, res, next) => {
       }
     }
 
-    // 5. 管理员可无视预约时间冲突（覆盖预约）
-    const admin = await isAdminUser(user.personalId);
+    // 5. 管理员/琴房负责人可无视预约时间冲突（覆盖预约）
+    const admin = priv.privileged;
 
     await conn.beginTransaction();
     if (!admin) {
@@ -225,9 +296,10 @@ router.put('/:id', async (req, res, next) => {
     const resv = rows[0];
     const resvDate = resv.dateStr || toDateStr(resv.date);
 
-    const admin = await isAdminUser(user.personalId);
+    const priv = await getUserPrivileges(user.personalId);
+    const admin = priv.privileged;
 
-    // 权限：管理员可修改任何预约；否则仅主预约人可修改
+    // 权限：管理员/琴房负责人可修改任何预约；否则仅主预约人可修改
     if (!admin && resv.bookerId !== user.personalId) {
       return res.status(403).json({ success: false, message: '仅主预约人可修改该预约' });
     }
@@ -336,9 +408,10 @@ router.delete('/:id', async (req, res, next) => {
     const resv = rows[0];
     const resvDate = resv.dateStr || toDateStr(resv.date);
 
-    const admin = await isAdminUser(user.personalId);
+    const priv = await getUserPrivileges(user.personalId);
+    const admin = priv.privileged;
 
-    // 权限：管理员可取消任何预约；否则仅主预约人可取消
+    // 权限：管理员/琴房负责人可取消任何预约；否则仅主预约人可取消
     if (!admin && resv.bookerId !== user.personalId) {
       return res.status(403).json({ success: false, message: '仅主预约人可取消该预约' });
     }

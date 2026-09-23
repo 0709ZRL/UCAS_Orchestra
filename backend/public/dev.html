@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>发展成员 - 国科大民族管弦乐团管理平台</title>
+<link rel="stylesheet" href="/css/shared.css">
+<style>
+/* 发展成员入口：绿色主题，与正式成员登录页区分 */
+.dev-auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:linear-gradient(135deg,#e8f8ef 0%,#d6f0e2 45%,#eafaf1 100%)}
+.dev-auth-box{width:460px;max-width:100%;background:#fff;border-radius:16px;padding:30px 28px;
+  box-shadow:0 10px 34px rgba(28,110,70,.16)}
+.dev-auth-box h2{margin:0 0 6px;font-size:19px;color:#1c6b47;text-align:center}
+.dev-auth-box .dev-tip{text-align:center;font-size:12px;color:#7d9b8b;margin-bottom:20px;line-height:1.6}
+.dev-auth-box .form-group{margin-bottom:14px}
+.dev-auth-box .form-group label{display:block;font-size:13px;color:#4a6b5c;margin-bottom:6px}
+.dev-auth-box .form-group input,.dev-auth-box .form-group select{width:100%;box-sizing:border-box;padding:10px 12px;
+  border:1px solid #cfe6da;border-radius:9px;font-size:14px;background:#fbfffd;outline:none;transition:border-color .2s,box-shadow .2s}
+.dev-auth-box .form-group input:focus,.dev-auth-box .form-group select:focus{border-color:#3fae7a;box-shadow:0 0 0 3px rgba(63,174,122,.15)}
+.dev-btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;
+  color:#fff;background:linear-gradient(135deg,#3fae7a,#2b8b5e);box-shadow:0 4px 14px rgba(63,174,122,.32);transition:all .2s}
+.dev-btn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(63,174,122,.42)}
+.dev-btn:disabled{opacity:.6;cursor:default;transform:none}
+.dev-links{margin-top:16px;text-align:center;font-size:13px;color:#7d9b8b}
+.dev-links a{color:#2b8b5e;cursor:pointer;text-decoration:none;font-weight:500}
+.dev-links a:hover{text-decoration:underline}
+.dev-err{color:#e94560;text-align:center;margin-top:12px;font-size:13px;min-height:18px}
+.dev-grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dev-back{text-align:center;margin-top:14px;font-size:12px}
+.dev-back a{color:#9bb3a7;text-decoration:none}
+.dev-back a:hover{color:#2b8b5e}
+@media(max-width:520px){.dev-grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="auth-page" class="dev-auth-page">
+  <div class="dev-auth-box">
+    <!-- 登录 -->
+    <div id="loginView">
+      <h2>🌱 发展成员入口</h2>
+      <div class="dev-tip">国科大民族管弦乐团 · 发展成员专用<br>登录后可查看琴房预约与个人信息</div>
+      <div class="form-group"><label>账号</label><input id="loginAccount" type="text" placeholder="请输入账号"></div>
+      <div class="form-group"><label>密码</label><input id="loginPassword" type="password" placeholder="请输入密码"></div>
+      <button class="dev-btn" onclick="devLogin()">登 录</button>
+      <div class="dev-links">
+        <a onclick="devShow('registerView')">注册发展成员</a> ·
+        <a onclick="devShow('resetView')">修改密码</a>
+      </div>
+      <div class="dev-back"><a href="/login">← 返回正式成员登录</a></div>
+    </div>
+
+    <!-- 注册（仅发展成员） -->
+    <div id="registerView" style="display:none">
+      <h2>🌱 注册发展成员</h2>
+      <div class="dev-tip">此入口只能注册为「发展成员」，不能注册普通成员</div>
+      <div class="form-group"><label>账号 *</label><input id="reg-account" type="text" placeholder="请输入账号"></div>
+      <div class="form-group"><label>密码 *</label><input id="reg-password" type="password" placeholder="至少 6 位"></div>
+      <div class="form-group"><label>真实姓名 *</label><input id="reg-name" type="text" placeholder="请输入真实姓名"></div>
+      <div class="dev-grid2">
+        <div class="form-group"><label>性别</label>
+          <select id="reg-gender"><option value="0">女</option><option value="1">男</option></select></div>
+        <div class="form-group"><label>校区</label>
+          <select id="reg-campus">
+            <option value="0">中关村校区</option><option value="1">玉泉路校区</option>
+            <option value="3">雁栖湖校区</option><option value="4">京内其他地区</option>
+            <option value="5">京外其他地区</option>
+          </select></div>
+      </div>
+      <div class="form-group"><label>学院</label><input id="reg-institute" type="text" placeholder="请输入学院"></div>
+      <div class="form-group"><label>年级</label><input id="reg-grade" type="text" placeholder="如：研一"></div>
+      <div class="form-group"><label>乐器</label><input id="reg-instrument" type="text" placeholder="多个乐器用分号分隔"></div>
+      <button class="dev-btn" id="regBtn" onclick="devRegister()">注 册</button>
+      <div class="dev-links"><a onclick="devShow('loginView')">已有账号？返回登录</a></div>
+    </div>
+
+    <!-- 修改密码 -->
+    <div id="resetView" style="display:none">
+      <h2>🔑 修改密码</h2>
+      <div class="dev-tip">输入账号与注册时的真实姓名即可重置密码</div>
+      <div class="form-group"><label>账号</label><input id="reset-account" type="text" placeholder="请输入账号"></div>
+      <div class="form-group"><label>真实姓名</label><input id="reset-name" type="text" placeholder="请输入注册时的真实姓名"></div>
+      <div class="form-group"><label>新密码</label><input id="reset-pwd" type="password" placeholder="至少 6 位"></div>
+      <div class="form-group"><label>确认新密码</label><input id="reset-pwd2" type="password" placeholder="请再次输入新密码"></div>
+      <button class="dev-btn" onclick="devResetPassword()">确认修改</button>
+      <div class="dev-links"><a onclick="devShow('loginView')">返回登录</a></div>
+    </div>
+
+    <div class="dev-err" id="devErr"></div>
+  </div>
+</div>
+<div id="toast"></div>
+<script src="/js/shared/constants.js"></script>
+<script src="/js/shared/utils.js"></script>
+<script src="/js/pages/dev.js"></script>
+</body>
+</html>

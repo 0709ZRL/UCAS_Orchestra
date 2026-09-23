@@ -48,7 +48,48 @@ function generatePersonalId() {
   return `P${ts}${rand}`;
 }
 
-// POST /api/auth/register
+// ===== 注册公共逻辑 =====
+// 公开注册仅允许的职位：0=普通成员、1=声部长
+// 2=琴房负责人、3=发展成员 不允许通过公开注册自助获取（发展成员走 /register-dev）
+const PUBLIC_JOB_VALUES = [0, 1];
+// 发展成员固定值为 3
+const DEV_MEMBER_JOB = 3;
+
+async function checkAccountNameFree(account, name) {
+  const [dup] = await pool.query('SELECT personalId FROM persons WHERE account = ?', [account]);
+  if (dup.length) return '该账号已被注册';
+  const [dupName] = await pool.query('SELECT personalId FROM persons WHERE name = ? AND account <> \'\'', [name]);
+  if (dupName.length) return '该姓名已存在账号，请勿重复创建';
+  return null;
+}
+
+// 统一插入人员记录
+async function insertPerson(o) {
+  const hashed = await bcrypt.hash(o.password, 10);
+  const personalId = generatePersonalId();
+  await pool.query(
+    `INSERT INTO persons (personalId, account, password, name, gender, institute, grade,
+      campus, section, job, isManager, managerJob, instrument, isMaster, isOrchestraMember)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [personalId, o.account, hashed, o.name,
+     o.gender ? 1 : 0, o.institute || null, o.grade || null,
+     parseInt(o.campus) || 0, parseInt(o.section) || 0, parseInt(o.job) || 0,
+     o.isManager ? 1 : 0, parseInt(o.managerJob) || 0,
+     o.instrument || null, o.isMaster ? 1 : 0,
+     o.isOrchestraMember === 0 ? 0 : 1]
+  );
+  return personalId;
+}
+
+// 签发 token 并写 Cookie；token 同时返回给调用方（供小程序等外部程序保存）
+function issueToken(res, personalId, account, name) {
+  const token = jwt.sign({ personalId, account, name }, JWT_SECRET, { expiresIn: '7d' });
+  res.cookie('token', token, COOKIE_OPTIONS);
+  res.cookie('userName', name, { ...COOKIE_OPTIONS, httpOnly: false });
+  return token;
+}
+
+// POST /api/auth/register — 普通注册（职位仅限 普通成员/声部长）
 router.post('/register', async (req, res, next) => {
   try {
     const { account, password, name, gender, institute, grade, campus, section,
@@ -56,38 +97,52 @@ router.post('/register', async (req, res, next) => {
     if (!account || !password || !name) {
       return res.status(400).json({ success: false, message: '账号、密码、姓名为必填项' });
     }
-    // 检查账号重复
-    const [dup] = await pool.query('SELECT personalId FROM persons WHERE account = ?', [account]);
-    if (dup.length) return res.status(409).json({ success: false, message: '该账号已被注册' });
+    const dupErr = await checkAccountNameFree(account, name);
+    if (dupErr) return res.status(409).json({ success: false, message: dupErr });
 
-    // 检查姓名重复：同一姓名已存在账号时，不允许再创建新账号
-    const [dupName] = await pool.query('SELECT personalId FROM persons WHERE name = ? AND account <> \'\'', [name]);
-    if (dupName.length) return res.status(409).json({ success: false, message: '该姓名已存在账号，请勿重复创建' });
+    // 职位白名单：禁止自助注册为 琴房负责人(2) / 发展成员(3)
+    let jobVal = parseInt(job) || 0;
+    if (!PUBLIC_JOB_VALUES.includes(jobVal)) jobVal = 0;
 
-    const hashed = await bcrypt.hash(password, 10);
-    const personalId = generatePersonalId();
+    const personalId = await insertPerson({
+      account, password, name, gender, institute, grade, campus, section,
+      job: jobVal, isManager, managerJob, instrument, isMaster
+    });
 
-    await pool.query(
-      `INSERT INTO persons (personalId, account, password, name, gender, institute, grade,
-        campus, section, job, isManager, managerJob, instrument, isMaster)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [personalId, account, hashed, name,
-       gender !== undefined ? (gender ? 1 : 0) : 0,
-       institute || null, grade || null,
-       campus !== undefined ? parseInt(campus) : 0,
-       section !== undefined ? parseInt(section) : 0,
-       job !== undefined ? parseInt(job) : 0,
-       isManager !== undefined ? (isManager ? 1 : 0) : 0,
-       managerJob !== undefined ? parseInt(managerJob) : 0,
-       instrument || null,
-       isMaster !== undefined ? (isMaster ? 1 : 0) : 0]
-    );
+    const token = issueToken(res, personalId, account, name);
+    res.status(201).json({ success: true, message: '注册成功', personalId, name, token });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: '该账号已被注册' });
+    next(err);
+  }
+});
 
-    // 签发 token
-    const token = jwt.sign({ personalId, account, name }, JWT_SECRET, { expiresIn: '7d' });
-    res.cookie('token', token, COOKIE_OPTIONS);
-    res.cookie('userName', name, { ...COOKIE_OPTIONS, httpOnly: false });
-    // token 同时放入响应体，便于小程序等外部程序直接保存（无需解析 Set-Cookie）
+// POST /api/auth/register-dev — 发展成员注册（仅能注册为发展成员 job=3）
+router.post('/register-dev', async (req, res, next) => {
+  try {
+    const { account, password, name, gender, institute, grade, campus, section, instrument } = req.body;
+    if (!account || !password || !name) {
+      return res.status(400).json({ success: false, message: '账号、密码、姓名为必填项' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ success: false, message: '密码长度不能少于 6 位' });
+    }
+    const dupErr = await checkAccountNameFree(account, name);
+    if (dupErr) return res.status(409).json({ success: false, message: dupErr });
+
+    // 强制：职位=发展成员、非管理人员、非首席、非乐团成员
+    const personalId = await insertPerson({
+      account, password, name, gender, institute, grade, campus,
+      section: section !== undefined ? section : 10, // 默认无声部
+      job: DEV_MEMBER_JOB,
+      isManager: 0,
+      managerJob: 0,
+      instrument,
+      isMaster: 0,
+      isOrchestraMember: 0
+    });
+
+    const token = issueToken(res, personalId, account, name);
     res.status(201).json({ success: true, message: '注册成功', personalId, name, token });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: '该账号已被注册' });

@@ -291,6 +291,11 @@ async function loadPage(page) {
 
   // 表格中的乐器占位符 → 徽章图片
   hydrateInstrumentBadges(el);
+
+  // 页面级渲染钩子（如成员管理页追加“发展成员”独立表格）
+  if (typeof window.afterLoadPage === 'function') {
+    try { window.afterLoadPage(page, el); } catch (e) { /* 忽略 */ }
+  }
 }
 
 // 通用提交

@@ -36,7 +36,7 @@
 | `grade` | `varchar(32)` | YES | — | `NULL` | 年级 |
 | `campus` | `tinyint` | NO | — | `0` | 校区（0=中关村，1=玉泉路，3=雁栖湖，4=京内其他，5=京外其他） |
 | `section` | `tinyint` | NO | — | `0` | 声部（0=民族管乐，1=弹拨一组，2=弹拨二组，3=胡琴，4=提琴，5=西洋木管，6=西洋铜管，7=低音，8=钢琴，9=打击，10=无声部） |
-| `job` | `tinyint` | NO | — | `0` | 职位（0=普通成员，1=声部长） |
+| `job` | `tinyint` | NO | — | `0` | 职位（0=普通成员，1=声部长，2=琴房负责人，3=发展成员） |
 | `isManager` | `tinyint(1)` | NO | — | `0` | 是否管理人员（0=否，1=是） |
 | `managerJob` | `tinyint` | NO | — | `0` | 管理职责（0=普通干事，1=团长，2=业务副团长，3=人事副团长，4=后勤组组长，5=宣传组组长，6=学生指挥，7=指挥助理，8=指挥，9=谱务） |
 | `instrument` | `varchar(256)` | YES | — | `NULL` | 乐器/工具，多个用分号分隔 |
@@ -60,7 +60,7 @@ CREATE TABLE `persons` (
   `grade` varchar(32) DEFAULT NULL,
   `campus` tinyint NOT NULL DEFAULT '0' COMMENT '0=中关村 1=玉泉路 3=雁栖湖 4=京内其他 5=京外其他',
   `section` tinyint NOT NULL DEFAULT '0' COMMENT '0=民族管乐 1=弹拨一组 2=弹拨二组 3=胡琴 4=提琴 5=西洋木管 6=西洋铜管 7=低音 8=钢琴 9=打击 10=无声部',
-  `job` tinyint NOT NULL DEFAULT '0' COMMENT '0=普通成员 1=声部长',
+  `job` tinyint NOT NULL DEFAULT '0' COMMENT '0=普通成员 1=声部长 2=琴房负责人 3=发展成员',
   `isManager` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0=否 1=是',
   `managerJob` tinyint NOT NULL DEFAULT '0' COMMENT '0=普通干事 1=团长 2=业务副团长 3=人事副团长 4=后勤组长 5=宣传组长 6=学生指挥 7=指挥助理 8=指挥 9=谱务',
   `instrument` varchar(256) DEFAULT NULL COMMENT '多个乐器用分号分隔',
@@ -385,6 +385,50 @@ CREATE TABLE `rehearsal_records` (
 
 ---
 
+### 10. `app_settings` — 应用配置（键值对）
+
+> 存放全局配置。目前用于 `reservation_password`：**琴房负责人**设置的四位预约密码，**发展成员**预约琴房时必须输入该密码才能成功。
+
+| 字段 | 类型 | 空 | 键 | 默认值 | 说明 |
+|------|------|----|----|--------|------|
+| `key` | `varchar(64)` | NO | **PRI** | — | 配置键 |
+| `value` | `varchar(255)` | NO | — | — | 配置值 |
+| `updatedAt` | `datetime` | NO | — | 当前时间 | 最后更新时间（自动） |
+
+**内置键：**
+
+| key | 说明 |
+|-----|------|
+| `reservation_password` | 琴房预约密码（4 位数字），由琴房负责人（`job=2`）或管理员在「琴房预约」页修改 |
+
+**DDL：**
+```sql
+CREATE TABLE `app_settings` (
+  `key` VARCHAR(64) NOT NULL COMMENT '配置键',
+  `value` VARCHAR(255) NOT NULL COMMENT '配置值',
+  `updatedAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT IGNORE INTO app_settings (`key`, `value`) VALUES ('reservation_password', '8912');
+```
+
+---
+
+## 角色与职位（`persons.job` / `isManager`）
+
+| 角色 | 判定 | 权限 |
+|------|------|------|
+| 管理员 | `isManager = 1` | 全部权限 |
+| 声部长 | `job = 1` | 本声部成员/乐谱相关增删改 |
+| **琴房负责人** | `job = 2` | **非管理员**；可对琴房预约任意增删改查（含他人预约、绕过时间规则），可查看/修改预约密码 |
+| **发展成员** | `job = 3` | 仅可查看**琴房预约**与**个人信息**；有 `isOrchestraMember = 0`，不计入乐团成员统计；预约琴房需输入琴房负责人设置的四位密码；只能通过 `/dev` 入口自助注册 |
+| 普通成员 | 其他 | 只读 + 预约琴房 |
+
+> 注：职位/管理身份字段仅**管理员**可在成员管理中修改（声部长无法自行授予 `job=2/3` 或 `isManager=1`）。
+
+---
+
 ## 实体关系简图（ER）
 
 ```mermaid
@@ -403,7 +447,7 @@ erDiagram
         varchar(100) name
         tinyint gender "0女 1男"
         tinyint section "0民乐 1弹拨一…"
-        tinyint job "0普通 1声部长"
+        tinyint job "0普通 1声部长 2琴房负责人 3发展成员"
         tinyint isManager "0否 1是"
         tinyint isMaster "0否 1首席"
         tinyint isOrchestraMember "0否 1是"

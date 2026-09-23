@@ -33,16 +33,61 @@ function memberCellHTML(row) {
     + '</div></div>';
 }
 
-// 职位列：声部长 / 管理职务 / 普通成员
+// 职位列：琴房负责人 / 发展成员 / 声部长 / 管理职务 / 普通成员
 function personTagsHTML(row) {
+  const job = Number(row.job);
   const tags = [];
-  if (row.job == 1) tags.push('<span class="tag tag-job">声部长</span>');
+  if (job === JOB_ROOM_MANAGER) tags.push('<span class="tag tag-roommgr">琴房负责人</span>');
+  else if (job === JOB_DEV_MEMBER) tags.push('<span class="tag tag-dev">发展成员</span>');
+  else if (job === JOB_SECTION_LEADER) tags.push('<span class="tag tag-job">声部长</span>');
   if (row.isManager == 1) {
     const mj = (PROFILE_MAP.managerJob && PROFILE_MAP.managerJob[row.managerJob]) || '管理人员';
     tags.push('<span class="tag tag-manager">' + escHtml(mj) + '</span>');
   }
   if (!tags.length) tags.push('<span class="cell-empty">普通成员</span>');
   return '<div class="tag-list">' + tags.join('') + '</div>';
+}
+
+// ===== 发展成员（job=3）独立表格：不与正式成员混在一起 =====
+// 页面级渲染钩子：loadPage 渲染完主表格后调用
+window.afterLoadPage = function (page, el) {
+  if (page === 'persons') renderDevMemberSection(el);
+};
+
+async function renderDevMemberSection(el) {
+  if (!el) return;
+  let html = '<div class="dev-section" id="dev-section">'
+    + '<div class="dev-head"><span class="dev-title">🌱 发展成员</span>'
+    + '<span class="dev-sub">正在发展中的人员（不占用正式成员名额，仅可查看琴房与个人信息）</span></div>'
+    + '<div class="dev-body"><div class="loading-wrap"><div class="spin"></div><div>加载中...</div></div></div>'
+    + '</div>';
+  // 挂到主表格之后（分页条下方）
+  el.insertAdjacentHTML('beforeend', html);
+
+  const body = document.getElementById('dev-body') || el.querySelector('.dev-body');
+  try {
+    const res = await api('/persons?job=3&limit=200&page=1');
+    if (!res.success) throw new Error();
+    const list = res.data || [];
+    const countEl = el.querySelector('.dev-title');
+    if (countEl) countEl.textContent = '🌱 发展成员（' + (res.total || list.length) + '）';
+    if (!list.length) {
+      body.innerHTML = '<div class="dev-empty">暂无发展成员</div>';
+      return;
+    }
+    const cols = [
+      { key: 'personalId', label: '姓名 / 用户ID', _page: 'persons', _id: true, render: (row) => memberCellHTML(row) },
+      { key: 'account', label: '账号' },
+      { key: 'gender', label: '性别', render: (row) => row.gender == 1 ? '<span class="tag tag-male">男</span>' : '<span class="tag tag-female">女</span>' },
+      { key: 'institute', label: '学院', render: (row) => row.institute ? escHtml(row.institute) : '<span class="cell-empty">—</span>' },
+      { key: 'grade', label: '年级', render: (row) => row.grade ? escHtml(row.grade) : '<span class="cell-empty">—</span>' },
+      { key: 'instrument', label: '乐器', render: (row) => instrumentSlotHTML(row.instrument) }
+    ];
+    body.innerHTML = '<div class="table-wrap">' + buildTable(list, cols, null) + '</div>';
+    hydrateInstrumentBadges(body);
+  } catch (e) {
+    body.innerHTML = '<div class="dev-empty">加载失败</div>';
+  }
 }
 
 const DASH_COLORS = ['#1890ff', '#00d4ff', '#7c5cff', '#ff4d6d', '#52c41a', '#fa8c16', '#fadb14', '#13c2c2', '#eb2f96', '#a0d911', '#2f54eb'];

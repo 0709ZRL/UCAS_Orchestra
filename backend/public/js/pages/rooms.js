@@ -22,6 +22,9 @@ let _weekStart = null;           // 当前显示周的周一（Date）
 let _reservations = [];          // 当前周预约数据
 let _myId = '';                  // 当前登录用户 personalId
 let _isAdmin = false;            // 是否为管理员（可覆盖预约、管理任何预约）
+let _isRoomManager = false;      // 是否为琴房负责人（job=2，可任意增删改预约、设置预约密码）
+let _isDevMember = false;        // 是否为发展成员（job=3，预约需输入四位密码）
+let _resvPassword = null;        // 琴房负责人当前设置的预约密码
 let _serverOffset = 0;           // 服务器与客户端时间差（ms）
 let _selectedResvId = null;      // 详情面板选中的预约 id
 let _editingId = null;           // 编辑中的预约 id
@@ -75,6 +78,8 @@ async function initRoomsPage() {
     if (meRes.success && meRes.data) {
       _myId = meRes.data.personalId;
       _isAdmin = meRes.data.isManager == 1;
+      _isRoomManager = Number(meRes.data.job) === 2;
+      _isDevMember = Number(meRes.data.job) === 3;
     }
     if (healthRes.success) {
       _serverOffset = new Date(healthRes.time).getTime() - Date.now();
@@ -104,9 +109,67 @@ function renderToolbar() {
     + '<button class="btn-reserve" id="btn-reserve" onclick="openCreateModal()">＋ 预约</button>'
     + '</div>'
     + '<div class="room-notice">' + ROOM_NOTICE_TEXT + '</div>'
+    + '<div id="resv-pwd-card"></div>'
     + '<div class="rooms-main" id="rooms-main"></div>'
     + '</div>';
   loadAllRooms();
+  loadReservationPasswordCard();
+}
+
+// ===== 预约密码（仅琴房负责人/管理员可见、可改）=====
+async function loadReservationPasswordCard() {
+  const box = document.getElementById('resv-pwd-card');
+  if (!box) return;
+  if (!_isRoomManager && !_isAdmin) { box.innerHTML = ''; return; }
+  try {
+    const res = await api('/reservations/password');
+    if (!res.success) { box.innerHTML = ''; return; }
+    _resvPassword = res.data.password;
+    box.innerHTML = '<div class="resv-pwd-card">'
+      + '<span class="rp-icon">🔑</span>'
+      + '<span class="rp-text">您设置的预约密码为：</span>'
+      + '<span class="rp-code" id="rp-code">' + escHtml(_resvPassword || '----') + '</span>'
+      + '<button class="rp-edit" onclick="showPasswordModal()">修改预约密码</button>'
+      + '</div>';
+  } catch (e) {
+    box.innerHTML = '';
+  }
+}
+
+function showPasswordModal() {
+  const html = '<h2>🔑 修改预约密码</h2><form id="pwdResvForm">'
+    + '<div class="form-group"><label>新的四位数字密码</label>'
+    + '<input id="rp-new" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="请输入 4 位数字">'
+    + '<div style="font-size:12px;color:#999;margin-top:6px">只能为 4 位数字（0-9）。发展成员预约琴房时需要输入该密码。</div>'
+    + '</div></form>'
+    + '<div class="form-actions"><button class="btn-cancel" onclick="closeModal()">取消</button>'
+    + '<button class="btn-green" onclick="submitResvPassword()">保存</button></div>';
+  openModal(html);
+  const inp = document.getElementById('rp-new');
+  if (inp) {
+    inp.value = _resvPassword || '';
+    inp.focus(); inp.select();
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') submitResvPassword(); });
+    // 只允许输入数字
+    inp.addEventListener('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 4); });
+  }
+}
+
+async function submitResvPassword() {
+  const inp = document.getElementById('rp-new');
+  if (!inp) return;
+  const val = (inp.value || '').trim();
+  if (!/^\d{4}$/.test(val)) { showToast('预约密码必须是 4 位数字', 'error'); return; }
+  const res = await api('/reservations/password', { method: 'PUT', body: JSON.stringify({ password: val }) });
+  if (res.success) {
+    _resvPassword = val;
+    const code = document.getElementById('rp-code');
+    if (code) code.textContent = val;
+    showToast('预约密码已更新');
+    closeModal();
+  } else {
+    showToast(res.message || '修改失败', 'error');
+  }
 }
 
 // 加载全部琴房（平铺显示，每个选项带校区分组前缀，避免 optgroup 在移动端渲染问题）
@@ -422,14 +485,15 @@ function renderDetailPanel() {
   const participants = parseParticipants(r.participants);
 
   const isSelf = r.bookerId === _myId;
-  // 管理员可管理任何预约；普通用户仅可管理自己作为主预约人的预约
-  const canManage = isSelf || _isAdmin;
-  // 修改：管理员无视时间；普通用户未结束（含进行中）可改
-  const canEdit = _isAdmin || (isSelf && now < endLocal);
-  // 取消：管理员无视时间；普通用户未结束（含进行中）可取消
-  const canCancel = _isAdmin || (isSelf && now < endLocal);
-  // 是否可修改开始时间（管理员始终可；普通用户仅未开始时）
-  const canEditStart = _isAdmin || (isSelf && now < startLocal);
+  // 管理员/琴房负责人可管理任何预约；普通用户仅可管理自己作为主预约人的预约
+  const canManageAny = _isAdmin || _isRoomManager;
+  const canManage = isSelf || canManageAny;
+  // 修改：特权用户无视时间；普通用户未结束（含进行中）可改
+  const canEdit = canManageAny || (isSelf && now < endLocal);
+  // 取消：特权用户无视时间；普通用户未结束（含进行中）可取消
+  const canCancel = canManageAny || (isSelf && now < endLocal);
+  // 是否可修改开始时间（特权用户始终可；普通用户仅未开始时）
+  const canEditStart = canManageAny || (isSelf && now < startLocal);
 
   let html = '<h3>预约详情</h3>';
   html += '<div class="detail-card">'
@@ -455,7 +519,7 @@ function renderDetailPanel() {
     html += '<div class="detail-actions">';
     if (canEdit) {
       html += '<button class="btn-edit-resv" onclick="openEditModal(' + r.id + ')">'
-        + (_isAdmin ? '⚙️ 修改预约' : (canEditStart ? '✏️ 修改预约' : '⏰ 修改结束时间')) + '</button>';
+        + (canManageAny ? '⚙️ 修改预约' : (canEditStart ? '✏️ 修改预约' : '⏰ 修改结束时间')) + '</button>';
     } else {
       html += '<button class="btn-edit-resv" disabled>' + (now >= endLocal ? '已结束' : '✏️ 修改预约') + '</button>';
     }
@@ -464,8 +528,9 @@ function renderDetailPanel() {
     } else {
       html += '<button class="btn-cancel-resv" disabled>' + (now >= endLocal ? '已结束不可取消' : '🗑 取消预约') + '</button>';
     }
-    if (_isAdmin && !isSelf) {
-      html += '<div style="font-size:11px;color:#fa8c16;margin-top:8px;text-align:center">👑 管理员权限：可修改/删除该预约</div>';
+    if (canManageAny && !isSelf) {
+      html += '<div style="font-size:11px;color:#fa8c16;margin-top:8px;text-align:center">'
+        + (_isAdmin ? '👑 管理员权限：可修改/删除该预约' : '🔑 琴房负责人权限：可修改/删除该预约') + '</div>';
     }
     html += '</div>';
   }
@@ -519,7 +584,8 @@ function buildResvModal(r, meName) {
   const now = nowServer();
   const todayStr = fmtDate(now);
 
-  // 编辑时计算规则（管理员可无视时间要求，任意修改）
+  // 编辑时计算规则（管理员/琴房负责人可无视时间要求，任意修改）
+  const canOverride = _isAdmin || _isRoomManager;
   let allowEditStart = true;
   let endMin = '';
   let startVal = '', endVal = '', dateVal = '';
@@ -527,7 +593,7 @@ function buildResvModal(r, meName) {
     dateVal = String(r.date).slice(0, 10);
     startVal = fmtTime(r.startTime);
     endVal = fmtTime(r.endTime);
-    if (!_isAdmin) {
+    if (!canOverride) {
       const startLocal = new Date(dateVal + 'T' + startVal);
       const endLocal = new Date(dateVal + 'T' + endVal);
       if (now >= startLocal && now < endLocal) {
@@ -566,6 +632,11 @@ function buildResvModal(r, meName) {
     + '<div class="p-hint">💡 输入姓名模糊搜索或精确输入 personId</div>'
     + '<div class="p-count" id="p-count"></div>'
     + '</div>'
+    + (!isEdit && _isDevMember
+        ? '<div class="form-group dev-pwd-group"><label>🔑 预约密码</label>'
+          + '<input id="rv-pwd" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="请输入琴房负责人提供的 4 位数字密码">'
+          + '<div class="p-hint">💡 发展成员预约琴房需输入琴房负责人提供的四位密码</div></div>'
+        : '')
     + '</div>'
     + '<div class="resv-form-actions">'
     + '<button class="btn-cancel" onclick="closeModal()">取消</button>'
@@ -573,6 +644,10 @@ function buildResvModal(r, meName) {
     + '</div>';
 
   openModal(html);
+
+  // 发展成员：只允许输入数字
+  const pwdEl = document.getElementById('rv-pwd');
+  if (pwdEl) pwdEl.addEventListener('input', function () { this.value = this.value.replace(/\D/g, '').slice(0, 4); });
 
   // 渲染已添加参与人标签
   _participants.forEach(p => renderParticipantTag(p));
@@ -765,6 +840,17 @@ async function submitReservation() {
   const participants = _participants.map(p => p.personalId);
 
   const body = { roomId: _currentRoomId, date, startTime: start, endTime: end, participants };
+
+  // 发展成员预约需校验四位预约密码
+  if (!_editingId && _isDevMember) {
+    const pwdInput = document.getElementById('rv-pwd');
+    const pwd = pwdInput ? (pwdInput.value || '').trim() : '';
+    if (!/^\d{4}$/.test(pwd)) {
+      showToast('请输入琴房负责人提供的四位预约密码', 'error');
+      btn.disabled = false; return;
+    }
+    body.roomPassword = pwd;
+  }
 
   try {
     let res;

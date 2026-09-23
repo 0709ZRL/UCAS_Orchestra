@@ -25,6 +25,10 @@ function saveAvatar(base64Str, personalId) {
   return filename;
 }
 
+// 仅管理员可修改的角色字段（职位/是否管理人员/管理职责）
+// 注：job=2（琴房负责人）、job=3（发展成员）属于特权角色，不允许声部长自行授予
+const ROLE_FIELDS = ['job', 'isManager', 'managerJob'];
+
 // 生成唯一 personalId: P + 14位时间戳 + 4位随机数
 function generatePersonalId() {
   const ts = Date.now().toString(36).toUpperCase();
@@ -35,9 +39,16 @@ function generatePersonalId() {
 // GET /api/persons — 列表（支持分页 & 搜索）
 router.get('/', async (req, res, next) => {
   try {
-    const { name, section, campus, isManager, isMaster, page = 1, limit = 50 } = req.query;
+    const { name, section, campus, isManager, isMaster, job, page = 1, limit = 50 } = req.query;
     let sql = 'SELECT * FROM persons WHERE 1=1';
     const params = [];
+
+    // 职位筛选：显式传 job 时按值过滤；默认排除发展成员(job=3)，使其单独展示不在主列表里
+    if (job !== undefined && job !== '') {
+      sql += ' AND job = ?'; params.push(parseInt(job));
+    } else {
+      sql += ' AND job <> 3';
+    }
 
     if (name) { sql += ' AND name LIKE ?'; params.push(`%${name}%`); }
     if (section !== undefined && section !== '') { sql += ' AND section = ?'; params.push(parseInt(section)); }
@@ -63,21 +74,23 @@ router.get('/', async (req, res, next) => {
 // 必须定义在 /:personalId 之前，避免 'stats' 被当作 personalId
 router.get('/stats', async (req, res, next) => {
   try {
-    const [totalRows] = await pool.query('SELECT COUNT(*) AS total FROM persons');
+    // 统计数据仅统计正式成员（排除发展成员 job=3）
+    const MEMBER_WHERE = ' WHERE job <> 3';
+    const [totalRows] = await pool.query('SELECT COUNT(*) AS total FROM persons' + MEMBER_WHERE);
     const total = totalRows[0].total;
 
-    const [genderRows] = await pool.query('SELECT gender, COUNT(*) AS cnt FROM persons GROUP BY gender');
+    const [genderRows] = await pool.query('SELECT gender, COUNT(*) AS cnt FROM persons' + MEMBER_WHERE + ' GROUP BY gender');
     const gender = { male: 0, female: 0 };
     genderRows.forEach(r => { if (r.gender == 1) gender.male = r.cnt; else gender.female = r.cnt; });
 
     const SECTION_NAMES = { 0:'民族管乐',1:'弹拨一组',2:'弹拨二组',3:'胡琴',4:'提琴',5:'西洋木管',6:'西洋铜管',7:'低音',8:'钢琴',9:'打击',10:'无声部' };
-    const [sectionRows] = await pool.query('SELECT section, COUNT(*) AS cnt FROM persons GROUP BY section');
+    const [sectionRows] = await pool.query('SELECT section, COUNT(*) AS cnt FROM persons' + MEMBER_WHERE + ' GROUP BY section');
     const sections = sectionRows
       .map(r => ({ key: r.section, name: SECTION_NAMES[r.section] || ('声部' + r.section), count: r.cnt }))
       .sort((a, b) => b.count - a.count);
 
     const CAMPUS_NAMES = { 0:'中关村校区',1:'玉泉路校区',3:'雁栖湖校区',4:'京内其他',5:'京外其他' };
-    const [campusRows] = await pool.query('SELECT campus, COUNT(*) AS cnt FROM persons GROUP BY campus');
+    const [campusRows] = await pool.query('SELECT campus, COUNT(*) AS cnt FROM persons' + MEMBER_WHERE + ' GROUP BY campus');
     const campuses = campusRows
       .map(r => ({ key: r.campus, name: CAMPUS_NAMES[r.campus] || ('校区' + r.campus), count: r.cnt }))
       .sort((a, b) => b.count - a.count);
@@ -149,10 +162,15 @@ router.post('/', async (req, res, next) => {
     if (!name) {
       return res.status(400).json({ success: false, message: 'name 为必填项' });
     }
+    const byManager = isManagerUser(user);
     // 声部长只能新增本声部成员
-    if (!isManagerUser(user) && parseInt(section !== undefined ? section : 0) !== user.section) {
+    if (!byManager && parseInt(section !== undefined ? section : 0) !== user.section) {
       return res.status(403).json({ success: false, message: '声部长只能新增本声部成员' });
     }
+    // 职位/管理人员/管理职责仅管理员可指定（声部长新增的成员一律为普通成员）
+    const jobVal = byManager ? (job !== undefined ? parseInt(job) || 0 : 0) : 0;
+    const mgrVal = byManager && isManager !== undefined ? (isManager ? 1 : 0) : 0;
+    const mgrJobVal = byManager && managerJob !== undefined ? parseInt(managerJob) || 0 : 0;
     const personalId = generatePersonalId();
     await pool.query(
       `INSERT INTO persons (personalId, name, gender, institute, grade, campus, section, job, isManager, managerJob, instrument, isMaster)
@@ -163,9 +181,7 @@ router.post('/', async (req, res, next) => {
         institute || null, grade || null,
         campus !== undefined ? parseInt(campus) : 0,
         section !== undefined ? parseInt(section) : 0,
-        job !== undefined ? parseInt(job) : 0,
-        isManager !== undefined ? (isManager ? 1 : 0) : 0,
-        managerJob !== undefined ? parseInt(managerJob) : 0,
+        jobVal, mgrVal, mgrJobVal,
         instrument || null,
         isMaster !== undefined ? (isMaster ? 1 : 0) : 0
       ]
@@ -185,31 +201,43 @@ router.put('/:personalId', async (req, res, next) => {
     if (!isManagerUser(user) && !isSectionLeader(user)) {
       return res.status(403).json({ success: false, message: '普通成员不能编辑成员' });
     }
-    // 声部长：目标成员必须属于本声部
-    if (!isManagerUser(user)) {
-      const [target] = await pool.query('SELECT section FROM persons WHERE personalId = ?', [req.params.personalId]);
+    // 声部长：目标成员必须属于本声部；且不能修改职位/管理身份
+    const byManager = isManagerUser(user);
+    const body = { ...req.body };
+    if (!byManager) {
+      const [target] = await pool.query(
+        'SELECT section, job, isManager, managerJob FROM persons WHERE personalId = ?',
+        [req.params.personalId]
+      );
       if (!target.length) return res.status(404).json({ success: false, message: '未找到该成员' });
       if (target[0].section !== user.section) {
         return res.status(403).json({ success: false, message: '声部长只能编辑本声部成员' });
       }
       // 声部长不允许把成员改到其他声部
-      if (req.body.section !== undefined && parseInt(req.body.section) !== user.section) {
+      if (body.section !== undefined && parseInt(body.section) !== user.section) {
         return res.status(403).json({ success: false, message: '声部长不能将成员调至其他声部' });
       }
+      // 职位/是否管理人员/管理职责仅管理员可修改（防止声部长自我提权为琴房负责人等特权角色）
+      // 与当前值相同则忽略，实际发生变化才拒绝
+      const changed = ROLE_FIELDS.some(f => body[f] !== undefined && parseInt(body[f]) !== parseInt(target[0][f]));
+      if (changed) {
+        return res.status(403).json({ success: false, message: '仅管理员可修改职位/管理身份' });
+      }
+      ROLE_FIELDS.forEach(f => delete body[f]);
     }
     const fields = ['name', 'gender', 'institute', 'grade', 'campus', 'section', 'job', 'isManager', 'managerJob', 'instrument', 'isMaster'];
-    const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
+    const sets = fields.filter(f => body[f] !== undefined).map(f => `${f} = ?`);
     // 处理头像
     if (req.body.avatar) {
       const avatarFile = saveAvatar(req.body.avatar, req.params.personalId);
       if (avatarFile) {
         sets.push('avatar = ?');
-        req.body._avatar = avatarFile;
+        body._avatar = avatarFile;
       }
     }
     if (!sets.length) return res.status(400).json({ success: false, message: '没有需要更新的字段' });
-    const values = fields.filter(f => req.body[f] !== undefined).map(f => req.body[f]);
-    if (req.body._avatar) values.push(req.body._avatar);
+    const values = fields.filter(f => body[f] !== undefined).map(f => body[f]);
+    if (body._avatar) values.push(body._avatar);
     values.push(req.params.personalId);
     const [result] = await pool.query(`UPDATE persons SET ${sets.join(', ')} WHERE personalId = ?`, values);
     if (!result.affectedRows) return res.status(404).json({ success: false, message: '未找到该成员' });

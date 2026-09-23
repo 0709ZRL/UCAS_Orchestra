@@ -1,8 +1,10 @@
 // ===== 角色权限中间件 =====
-// 角色定义：
+// 角色定义（persons.job）：
+//   job=0  普通成员：只读 + 预约琴房
+//   job=1  声部长：本声部相关增删改权限
+//   job=2  琴房负责人：可任意增删改琴房预约（非管理员）
+//   job=3  发展成员：仅可查看琴房/个人信息，预约琴房需琴房负责人的四位密码
 //   isManager=1  管理人员：全部权限
-//   job=1        声部长：本声部相关增删改权限
-//   其他         普通成员：只读
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 
@@ -32,7 +34,7 @@ async function loadUser(req, _res, next) {
   if (!decoded) { req.user = null; return next(); }
   try {
     const [rows] = await pool.query(
-      'SELECT personalId, name, section, job, isManager, managerJob FROM persons WHERE personalId = ?',
+      'SELECT personalId, name, section, job, isManager, managerJob, isOrchestraMember FROM persons WHERE personalId = ?',
       [decoded.personalId]
     );
     req.user = rows.length ? rows[0] : null;
@@ -67,8 +69,23 @@ function requirePrivileged(req, res, next) {
 // 快捷判断
 function isManager(user) { return !!user && user.isManager == 1; }
 function isSectionLeader(user) { return !!user && user.job == 1; }
+// 琴房负责人：job = 2（不是管理员，但可任意管理琴房预约）
+function isRoomManager(user) { return !!user && user.job == 2; }
+// 发展成员：job = 3
+function isDevMember(user) { return !!user && user.job == 3; }
+// 预约特权：管理员或琴房负责人
+function canManageReservations(user) { return isManager(user) || isRoomManager(user); }
 // 学生指挥：managerJob = 6
 function isConductor(user) { return !!user && user.managerJob == 6; }
+
+// 仅琴房负责人（或管理员）
+function requireRoomManager(req, res, next) {
+  if (!req.user) return res.status(401).json({ success: false, message: '请先登录' });
+  if (!canManageReservations(req.user)) {
+    return res.status(403).json({ success: false, message: '仅琴房负责人可执行此操作' });
+  }
+  next();
+}
 
 // 仅学生指挥
 function requireConductor(req, res, next) {
@@ -79,4 +96,4 @@ function requireConductor(req, res, next) {
   next();
 }
 
-module.exports = { loadUser, requireAuth, requireManager, requirePrivileged, requireConductor, isManager, isSectionLeader, isConductor, decodeToken, getTokenFromReq };
+module.exports = { loadUser, requireAuth, requireManager, requirePrivileged, requireConductor, requireRoomManager, isManager, isSectionLeader, isRoomManager, isDevMember, canManageReservations, isConductor, decodeToken, getTokenFromReq };
