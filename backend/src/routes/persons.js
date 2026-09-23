@@ -29,6 +29,13 @@ function saveAvatar(base64Str, personalId) {
 // 注：job=2（琴房负责人）、job=3（发展成员）属于特权角色，不允许声部长自行授予
 const ROLE_FIELDS = ['job', 'isManager', 'managerJob'];
 
+// 职位变更时联动 isOrchestraMember：
+//   job=3（发展成员）→ 0（非乐团成员）
+//   其他正式职位 → 1（乐团正式成员，琴房预约无需密码）
+function orchestraMemberOf(job) {
+  return parseInt(job) === 3 ? 0 : 1;
+}
+
 // 生成唯一 personalId: P + 14位时间戳 + 4位随机数
 function generatePersonalId() {
   const ts = Date.now().toString(36).toUpperCase();
@@ -173,8 +180,8 @@ router.post('/', async (req, res, next) => {
     const mgrJobVal = byManager && managerJob !== undefined ? parseInt(managerJob) || 0 : 0;
     const personalId = generatePersonalId();
     await pool.query(
-      `INSERT INTO persons (personalId, name, gender, institute, grade, campus, section, job, isManager, managerJob, instrument, isMaster)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO persons (personalId, name, gender, institute, grade, campus, section, job, isManager, managerJob, instrument, isMaster, isOrchestraMember)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         personalId, name,
         gender !== undefined ? (gender ? 1 : 0) : 0,
@@ -183,7 +190,8 @@ router.post('/', async (req, res, next) => {
         section !== undefined ? parseInt(section) : 0,
         jobVal, mgrVal, mgrJobVal,
         instrument || null,
-        isMaster !== undefined ? (isMaster ? 1 : 0) : 0
+        isMaster !== undefined ? (isMaster ? 1 : 0) : 0,
+        orchestraMemberOf(jobVal)
       ]
     );
     res.status(201).json({ success: true, message: '成员已添加', personalId });
@@ -225,7 +233,13 @@ router.put('/:personalId', async (req, res, next) => {
       }
       ROLE_FIELDS.forEach(f => delete body[f]);
     }
-    const fields = ['name', 'gender', 'institute', 'grade', 'campus', 'section', 'job', 'isManager', 'managerJob', 'instrument', 'isMaster'];
+    // 职位变更 → 联动 isOrchestraMember（升为正式成员后不再出现在发展成员表格、预约不再需密码）
+    // isOrchestraMember 只能由该联动写入，不接受客户端直接提交
+    delete body.isOrchestraMember;
+    if (body.job !== undefined) {
+      body.isOrchestraMember = orchestraMemberOf(body.job);
+    }
+    const fields = ['name', 'gender', 'institute', 'grade', 'campus', 'section', 'job', 'isManager', 'managerJob', 'instrument', 'isMaster', 'isOrchestraMember'];
     const sets = fields.filter(f => body[f] !== undefined).map(f => `${f} = ?`);
     // 处理头像
     if (req.body.avatar) {

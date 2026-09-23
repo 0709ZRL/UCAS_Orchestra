@@ -320,9 +320,15 @@ router.put('/profile', async (req, res, next) => {
     const fields = isManagerUser ? baseFields : baseFields.filter(f => !SELF_ROLE_FIELDS.includes(f));
     const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
     if (!sets.length) return res.status(400).json({ success: false, message: '没有需要更新的字段' });
+    // 职位变更时联动 isOrchestraMember（发展成员=0，正式成员=1）
+    if (isManagerUser && req.body.job !== undefined) {
+      sets.push('isOrchestraMember = ?');
+      fields.push('isOrchestraMember');
+      req.body.isOrchestraMember = parseInt(req.body.job) === 3 ? 0 : 1;
+    }
     const values = fields.filter(f => req.body[f] !== undefined).map(f => {
       if (['gender','isManager','isMaster'].includes(f)) return req.body[f] ? 1 : 0;
-      if (['campus','section','job','managerJob'].includes(f)) return parseInt(req.body[f]) || 0;
+      if (['campus','section','job','managerJob','isOrchestraMember'].includes(f)) return parseInt(req.body[f]) || 0;
       let v = req.body[f];
       if (Array.isArray(v)) v = v.join(';'); // instrument 等可能以数组提交（小程序徽章多选）
       return v || null;
