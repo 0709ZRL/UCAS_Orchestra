@@ -168,6 +168,30 @@ router.get('/badge-info', (req, res) => {
 });
 
 /**
+ * GET /api/instruments/badges?name=二胡&name=竹笛
+ * 批量解析（name 参数可重复；每一项本身也支持多乐器分隔符）
+ * 返回 { success:true, data:[ {input, matched, badges, urls, unmatched} ] }
+ * 供列表页一次性拿多人的徽章，避免逐行发请求
+ */
+router.get('/badges', (req, res) => {
+  let names = req.query.name;
+  if (names === undefined) names = [];
+  if (!Array.isArray(names)) names = [names];
+  const data = names.map(input => {
+    const raw = String(input || '').trim();
+    const list = resolveBadges(raw);
+    return {
+      input: raw,
+      matched: list.length > 0,
+      badges: list,
+      urls: list.map(badgeUrl),
+      unmatched: unmatchedParts(raw)
+    };
+  });
+  res.json({ success: true, data });
+});
+
+/**
  * GET /api/instruments/list
  * 返回全部可用的规范徽章列表
  */

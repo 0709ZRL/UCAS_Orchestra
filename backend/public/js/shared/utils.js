@@ -60,6 +60,47 @@ function fmtCN(v, sep) {
   return bj.getUTCFullYear() + '-' + p(bj.getUTCMonth() + 1) + '-' + p(bj.getUTCDate()) + sp + p(bj.getUTCHours()) + ':' + p(bj.getUTCMinutes());
 }
 
+// ===== 乐器徽章 =====
+// 生成徽章标签 HTML（badges 与 urls 一一对应；unmatched 为未识别的片段）
+function badgeChipsHTML(badges, urls, unmatched) {
+  const known = (badges || []).map((b, i) => {
+    const url = (urls && urls[i]) || ('/instruments/' + encodeURIComponent(b) + '.png');
+    return `<span class="inst-badge-item" title="${escHtml(b)}">`
+      + `<img class="inst-badge" src="${escHtml(url)}" alt="${escHtml(b)}" onerror="this.style.display='none'">`
+      + `<span class="inst-badge-name">${escHtml(b)}</span></span>`;
+  }).join('');
+  const unknown = (unmatched || [])
+    .map(p => `<span class="inst-badge-unknown" title="未收录该乐器徽章">${escHtml(p)}</span>`).join('');
+  return `<div class="inst-badges">${known}${unknown}</div>`;
+}
+
+// 表格里的乐器单元格占位符（稍后由 hydrateInstrumentBadges 批量替换为徽章）
+function instrumentSlotHTML(instrument) {
+  const raw = String(instrument || '').trim();
+  if (!raw) return '<span class="cell-empty">—</span>';
+  const attr = escHtml(raw).replace(/"/g, '&quot;');
+  return `<span class="inst-slot inst-cell" data-inst="${attr}">${escHtml(raw)}</span>`;
+}
+
+// 批量把页面上的 .inst-slot 占位符替换为徽章（一次请求搞定所有行）
+async function hydrateInstrumentBadges(root) {
+  const slots = Array.from((root || document).querySelectorAll('.inst-slot'));
+  if (!slots.length) return;
+  const names = [...new Set(slots.map(s => s.dataset.inst || '').filter(Boolean))];
+  if (!names.length) return;
+  const map = {};
+  try {
+    const qs = names.map(n => 'name=' + encodeURIComponent(n)).join('&');
+    const res = await api('/instruments/badges?' + qs);
+    if (res && res.success) (res.data || []).forEach(d => { map[d.input] = d; });
+  } catch (e) { /* 请求失败则保留原文 */ }
+  slots.forEach(s => {
+    const info = map[s.dataset.inst];
+    if (!info || !info.badges || !info.badges.length) return; // 未匹配保留原文
+    s.innerHTML = badgeChipsHTML(info.badges, info.urls, info.unmatched);
+  });
+}
+
 // API 请求
 async function api(path, opts = {}) {
   const r = await fetch('/api' + path, {
@@ -247,6 +288,9 @@ async function loadPage(page) {
   html += '<div class="table-wrap">' + buildTable(res.data, cols, fieldLookup) + '</div>';
   html += buildPagination(page, res.total, res.limit);
   el.innerHTML = html;
+
+  // 表格中的乐器占位符 → 徽章图片
+  hydrateInstrumentBadges(el);
 }
 
 // 通用提交

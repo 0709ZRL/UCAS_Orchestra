@@ -7,9 +7,47 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 
-// ===== 数据大屏 =====
+// ===== 成员列表单元格渲染 =====
+// 头像占位（无头像时显示姓名首字）
+function avatarFallback(text) {
+  const ch = String(text || '?').trim().charAt(0) || '?';
+  const safe = ch.replace(/[&<>"]/g, '');
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">'
+    + '<rect width="80" height="80" rx="40" fill="#e8eefc"/>'
+    + '<text x="40" y="53" font-size="34" text-anchor="middle" fill="#7c8db5" font-family="sans-serif">' + safe + '</text></svg>';
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+
+// 成员首列：头像 + 姓名 + 用户ID + 首席标记
+function memberCellHTML(row) {
+  const name = escHtml(row.name || '');
+  const id = escHtml(row.personalId || '');
+  const fb = escHtml(avatarFallback(row.name));
+  const master = row.isMaster == 1 ? '<span class="tag tag-master">首席</span>' : '';
+  return '<div class="member-cell">'
+    + '<img class="member-avatar" loading="lazy" alt="" src="/api/persons/' + id + '/avatar"'
+    + ' onerror="this.onerror=null;this.src=\'' + fb + '\'">'
+    + '<div class="member-meta">'
+    + '<div class="member-name">' + name + master + '</div>'
+    + '<div class="member-id">' + id + '</div>'
+    + '</div></div>';
+}
+
+// 职位列：声部长 / 管理职务 / 普通成员
+function personTagsHTML(row) {
+  const tags = [];
+  if (row.job == 1) tags.push('<span class="tag tag-job">声部长</span>');
+  if (row.isManager == 1) {
+    const mj = (PROFILE_MAP.managerJob && PROFILE_MAP.managerJob[row.managerJob]) || '管理人员';
+    tags.push('<span class="tag tag-manager">' + escHtml(mj) + '</span>');
+  }
+  if (!tags.length) tags.push('<span class="cell-empty">普通成员</span>');
+  return '<div class="tag-list">' + tags.join('') + '</div>';
+}
+
 const DASH_COLORS = ['#1890ff', '#00d4ff', '#7c5cff', '#ff4d6d', '#52c41a', '#fa8c16', '#fadb14', '#13c2c2', '#eb2f96', '#a0d911', '#2f54eb'];
 
+// ===== 数据大屏 =====
 async function showPersonDashboard() {
   const el = document.getElementById('page-persons');
   if (!el) return;

@@ -86,7 +86,16 @@ function getSearchFields(page) {
 // 列配置
 function getColumnConfig(page) {
   const map = {
-    persons:[{key:'personalId',label:'用户ID'},{key:'name',label:'姓名'},{key:'gender',label:'性别'},{key:'section',label:'声部'},{key:'campus',label:'校区'},{key:'job',label:'职位'},{key:'isManager',label:'管理人员'},{key:'managerJob',label:'管理职务',render:(row,lu)=>row.isManager==1?(lu&&lu.managerJob?((lu.managerJob.find(o=>String(o.v)===String(row.managerJob))||{}).t||row.managerJob):row.managerJob):'无'},{key:'isMaster',label:'首席'}],
+    persons:[
+      // 第一列 key 保持 personalId，删除按钮依赖它取主键
+      {key:'personalId',label:'成员',render:(row)=> typeof memberCellHTML === 'function' ? memberCellHTML(row) : row.personalId},
+      {key:'gender',label:'性别',render:(row)=> row.gender==1 ? '<span class="tag tag-male">男</span>' : '<span class="tag tag-female">女</span>'},
+      {key:'grade',label:'年级',render:(row)=> row.grade ? escHtml(row.grade) : '<span class="cell-empty">—</span>'},
+      {key:'section',label:'声部',render:(row)=> `<span class="tag tag-section">${escHtml(PROFILE_MAP.section[row.section] || '无声部')}</span>`},
+      {key:'campus',label:'校区',render:(row)=> `<span class="tag tag-campus">${escHtml(PROFILE_MAP.campus[row.campus] || '—')}</span>`},
+      {key:'job',label:'职位',render:(row)=> typeof personTagsHTML === 'function' ? personTagsHTML(row) : ''},
+      {key:'instrument',label:'乐器',render:(row)=> instrumentSlotHTML(row.instrument)}
+    ],
     scores:[{key:'scoreId',label:'ID'},{key:'title',label:'乐谱名'},{key:'isTotal',label:'类型'},{key:'section',label:'声部'},{key:'filehash',label:'PDF',render:(r)=>r.filehash?`<a href="/api/scores/${r.scoreId}/file" target="_blank" class="btn" style="padding:2px 10px;font-size:12px;background:#1890ff">📄 预览</a>`:'<span style="color:#999">无文件</span>'}],
     logistics:[{key:'itemId',label:'物品ID'},{key:'name',label:'物品名'},{key:'campus',label:'校区'},{key:'address',label:'位置'},{key:'isPublic',label:'状态'},{key:'belongsToId',label:'所属人'},{key:'imagehash',label:'图片',render:(r)=>r.imagehash?`<img src="/api/logistics/${r.itemId}/image" style="width:80px;height:80px;object-fit:cover;border-radius:6px;cursor:pointer" onclick="openLightbox('/api/logistics/${r.itemId}/image')" title="点击查看大图">`:'<span style="color:#999">无</span>'}]
   };

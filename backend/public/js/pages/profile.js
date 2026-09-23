@@ -55,15 +55,7 @@ async function renderInstrumentBadges(instrument) {
     const res = await api('/instruments/badge-info?name=' + encodeURIComponent(raw));
     const badges = (res && res.badges) || [];
     if (!badges.length) return; // 未匹配则保留原文
-    const urls = res.urls || [];
-    const known = badges.map((b, i) => {
-      const url = urls[i] || ('/instruments/' + encodeURIComponent(b) + '.png');
-      return `<span class="inst-badge-item" title="${escHtml(b)}">`
-        + `<img class="inst-badge" src="${escHtml(url)}" alt="${escHtml(b)}" onerror="this.style.display='none'">`
-        + `<span class="inst-badge-name">${escHtml(b)}</span></span>`;
-    }).join('');
-    const unknown = (res.unmatched || []).map(p => `<span class="inst-badge-unknown" title="未收录该乐器徽章">${escHtml(p)}</span>`).join('');
-    el.innerHTML = `<div class="inst-badges">${known}${unknown}</div>`;
+    el.innerHTML = badgeChipsHTML(badges, res.urls, res.unmatched);
   } catch (e) {
     // 出错则保留原文
   }

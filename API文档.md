@@ -487,6 +487,16 @@ zip 内文件命名：`乐谱名-声部.pdf`（总谱无声部后缀；重名自
 
 **GET /api/instruments/list** — 全部可用规范徽章名列表 `{ success:true, data:["上低音号","中提琴",...] }`
 
+**GET /api/instruments/badges?name=二胡&name=竹笛** — 批量解析（`name` 参数可重复；每一项本身也支持多乐器分隔符）
+- 列表页一次拿多人的徽章，避免逐行发请求
+```json
+{ "success":true, "data":[
+  { "input":"二胡; 中胡", "matched":true, "badges":["胡琴"], "urls":["/instruments/%E8%83%A1%E7%90%B4.png"], "unmatched":[] },
+  { "input":"大提琴;贝斯", "matched":true, "badges":["大提琴","低音提琴"], "urls":["...","..."], "unmatched":[] },
+  { "input":"古代编钟", "matched":false, "badges":[], "urls":[], "unmatched":["古代编钟"] }
+]}
+```
+
 **名称映射规则：**
 1. `二胡 / 高胡 / 中胡 / 京胡 / 板胡` → `胡琴`
 2. `竹笛 / 曲笛 / 梆笛 / 新笛 / 洞箫 / 萧 / 箫 / 笛子 / 笛` → `笛箫`
