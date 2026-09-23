@@ -20,6 +20,9 @@ async function showProfile() {
   order.forEach(k => {
     if (k === 'personalId' || k === 'account') {
       html += `<div class="profile-field"><div class="pl">${PROFILE_LABELS[k]}</div><div class="pv">${u[k]||''}</div></div>`;
+    } else if (k === 'instrument') {
+      // 乐器：先用原文占位，稍后由徽章接口替换
+      html += `<div class="profile-field"><div class="pl">${PROFILE_LABELS[k]}</div><div class="pv" id="pv-instrument">${u[k] ? escHtml(u[k]) : '<span class="pv-empty">未填写</span>'}</div></div>`;
     } else {
       const v = u[k];
       const label = PROFILE_MAP[k] ? PROFILE_MAP[k][v] : (v !== null && v !== undefined ? v : '');
@@ -36,6 +39,33 @@ async function showProfile() {
     pa.onerror = function() {
       this.src = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="#ddd" width="100" height="100"/><text x="50" y="58" text-anchor="middle" font-size="40" fill="#999">👤</text></svg>');
     };
+  }
+
+  // 乐器徽章
+  renderInstrumentBadges(u.instrument);
+}
+
+// 根据乐器字符串显示徽章图片（支持多乐器：中文分号/逗号/英文逗号/空格 分隔）
+async function renderInstrumentBadges(instrument) {
+  const el = document.getElementById('pv-instrument');
+  if (!el) return;
+  const raw = String(instrument || '').trim();
+  if (!raw) return; // 未填写时保留占位
+  try {
+    const res = await api('/instruments/badge-info?name=' + encodeURIComponent(raw));
+    const badges = (res && res.badges) || [];
+    if (!badges.length) return; // 未匹配则保留原文
+    const urls = res.urls || [];
+    const known = badges.map((b, i) => {
+      const url = urls[i] || ('/instruments/' + encodeURIComponent(b) + '.png');
+      return `<span class="inst-badge-item" title="${escHtml(b)}">`
+        + `<img class="inst-badge" src="${escHtml(url)}" alt="${escHtml(b)}" onerror="this.style.display='none'">`
+        + `<span class="inst-badge-name">${escHtml(b)}</span></span>`;
+    }).join('');
+    const unknown = (res.unmatched || []).map(p => `<span class="inst-badge-unknown" title="未收录该乐器徽章">${escHtml(p)}</span>`).join('');
+    el.innerHTML = `<div class="inst-badges">${known}${unknown}</div>`;
+  } catch (e) {
+    // 出错则保留原文
   }
 }
 

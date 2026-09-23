@@ -41,6 +41,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;b
 .profile-field{display:flex;padding:12px 0;border-bottom:1px solid #f0f0f0;font-size:14px}
 .profile-field .pl{width:120px;color:#888;flex-shrink:0}
 .profile-field .pv{flex:1;color:#333}
+.profile-field .pv-empty{color:#bbb}
+/* 乐器徽章 */
+.inst-badges{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.inst-badge-item{display:inline-flex;align-items:center;gap:6px;background:#f5f7fa;border:1px solid #e6ebf2;border-radius:999px;padding:3px 12px 3px 4px;line-height:1}
+.inst-badge{width:28px;height:28px;object-fit:contain;border-radius:50%;background:#fff;flex-shrink:0}
+.inst-badge-name{font-size:13px;color:#334155;white-space:nowrap}
+.inst-badge-unknown{display:inline-flex;align-items:center;font-size:13px;color:#94a3b8;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:999px;padding:4px 12px;line-height:1}
 .profile-actions{display:flex;justify-content:center;gap:12px;margin-top:28px;flex-wrap:wrap}
 .profile-actions button{padding:10px 28px;font-size:15px;font-weight:600;border-radius:10px;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;border:none}
 .profile-actions .btn-primary{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;box-shadow:0 4px 14px rgba(102,126,234,.35)}
