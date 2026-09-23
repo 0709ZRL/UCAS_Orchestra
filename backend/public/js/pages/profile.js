@@ -1,5 +1,17 @@
 let _profileData = null;
 
+// 角色类字段：职位/管理人员/管理职责/声部首席
+// - 非管理员不能在「我的」页自行修改（由成员管理中的管理员维护）
+// - 发展成员（job=3）的个人信息页不展示管理人员/管理职责/声部首席
+const SELF_ROLE_FIELDS = ['job', 'isManager', 'managerJob', 'isMaster'];
+const DEV_HIDDEN_FIELDS = ['isManager', 'managerJob', 'isMaster'];
+
+// 当前登录用户是否为管理员
+function meIsManager() {
+  const me = window._me || {};
+  return Number(me.isManager) === 1;
+}
+
 // 加载个人信息
 async function showProfile() {
   const res = await api('/auth/me');
@@ -9,6 +21,9 @@ async function showProfile() {
   if (!ures.success) { document.getElementById('page-profile').innerHTML = '<p>加载失败</p>'; return; }
   const u = ures.data;
 
+  // 发展成员：隐藏管理人员 / 管理职责 / 声部首席
+  const isDevMember = Number(u.job) === 3;
+
   let html = `<div class="profile-wrap">
     <div class="profile-avatar">
       <img src="/api/auth/avatar?t=${Date.now()}" id="profileAvatar">
@@ -16,7 +31,8 @@ async function showProfile() {
       <input id="avatarInput" type="file" accept="image/*" style="display:none" onchange="startCrop(this)">
     </div>`;
 
-  const order = ['name','gender','personalId','account','institute','grade','campus','section','job','isManager','managerJob','instrument','isMaster'];
+  const order = ['name','gender','personalId','account','institute','grade','campus','section','job','isManager','managerJob','instrument','isMaster']
+    .filter(k => !(isDevMember && DEV_HIDDEN_FIELDS.includes(k)));
   order.forEach(k => {
     if (k === 'personalId' || k === 'account') {
       html += `<div class="profile-field"><div class="pl">${PROFILE_LABELS[k]}</div><div class="pv">${u[k]||''}</div></div>`;
@@ -68,7 +84,9 @@ async function showProfileEdit() {
   const ures = await api('/persons/' + res.data.personalId);
   if (!ures.success) return;
   _profileData = ures.data;
-  const flds = fields.persons.filter(f => f.key !== 'personalId');
+  // 非管理员不能自行修改角色类字段（职位/管理人员/管理职责/声部首席）
+  const flds = fields.persons.filter(f => f.key !== 'personalId'
+    && (meIsManager() || !SELF_ROLE_FIELDS.includes(f.key)));
   let html = `<h2>编辑个人信息</h2><form id="form">`;
   let rows = [];
   flds.forEach(f => {
@@ -103,7 +121,8 @@ async function showProfileEdit() {
 
 // 提交个人信息编辑
 async function submitProfile() {
-  const flds = fields.persons.filter(f => f.key !== 'personalId');
+  const flds = fields.persons.filter(f => f.key !== 'personalId'
+    && (meIsManager() || !SELF_ROLE_FIELDS.includes(f.key)));
   const body = {};
   const intKeys = ['gender','campus','section','job','isManager','managerJob','isMaster'];
   flds.forEach(f => {

@@ -311,7 +311,13 @@ router.put('/profile', async (req, res, next) => {
     const token = getTokenFromReq(req);
     if (!token) return res.status(401).json({ success: false, message: '未登录' });
     const decoded = jwt.verify(token, JWT_SECRET);
-    const fields = ['name','gender','institute','grade','campus','section','job','isManager','managerJob','instrument','isMaster'];
+    // 角色类字段（职位/管理人员/管理职责/声部首席）仅管理员可通过本接口修改，
+    // 其余用户一律忽略，避免发展成员等自行提权
+    const [meRows] = await pool.query('SELECT isManager FROM persons WHERE personalId = ?', [decoded.personalId]);
+    const isManagerUser = meRows.length > 0 && meRows[0].isManager == 1;
+    const SELF_ROLE_FIELDS = ['job', 'isManager', 'managerJob', 'isMaster'];
+    const baseFields = ['name','gender','institute','grade','campus','section','job','isManager','managerJob','instrument','isMaster'];
+    const fields = isManagerUser ? baseFields : baseFields.filter(f => !SELF_ROLE_FIELDS.includes(f));
     const sets = fields.filter(f => req.body[f] !== undefined).map(f => `${f} = ?`);
     if (!sets.length) return res.status(400).json({ success: false, message: '没有需要更新的字段' });
     const values = fields.filter(f => req.body[f] !== undefined).map(f => {
