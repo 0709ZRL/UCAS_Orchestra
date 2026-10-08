@@ -566,8 +566,10 @@ GET /api/instruments/list                       // 全部规范名列表
 
 ```
 GET /api/scores?title=写意山水&section=胡琴声部&page=1&limit=20
-GET /api/scores/:scoreId/file          // 下载 PDF
-GET /api/scores/:scoreId               // 详情
+GET /api/scores/:scoreId               // 详情（拿标题，用于给文件命名）
+GET /api/scores/:scoreId/file          // PDF，inline 预览
+GET /api/scores/:scoreId/file?download=1   // PDF，attachment 下载
+GET /api/scores/export?ids=12,34,56    // 打包 zip（见 7.3）
 ```
 ```json
 { "success":true, "total":80, "data":[
@@ -575,21 +577,128 @@ GET /api/scores/:scoreId               // 详情
     "isTotal":0,"section":"胡琴声部","filehash":"94ac33..." } ] }
 ```
 
-小程序打开 PDF：
+> `isTotal`：`1`=总谱，`0`=分谱；`section` 可能是**逗号分隔的多个声部**。
 
-```js
-wx.downloadFile({
-  url: `https://zzzrrll.xin/api/scores/${scoreId}/file`,
-  success: res => {
-    wx.openDocument({
-      filePath: res.tempFilePath, fileType: 'pdf',
-      fail: () => wx.showToast({ title: '打开失败', icon: 'none' })
-    });
-  }
-});
+### 7.1 ⚠️ 文件名：小程序必须自己命名（否则就是 `tmp_xxxx`）
+
+**服务端已经保证不乱码**：`Content-Disposition` 同时给出 ASCII 回退名和 RFC 5987 的 UTF-8 名：
+
+```
+Content-Disposition: attachment; filename="___ - ___, ___ - 2026-10-07.pdf";
+                     filename*=UTF-8''%E7%BA%A2%E6%97%97%E9%A2%82%20-%20...
 ```
 
-> `isTotal`：`1`=总谱，`0`=分谱；`section` 可能是**逗号分隔的多个声部**。
+**但 `wx.downloadFile` 不会把服务端的文件名交给你**，它只返回一个临时路径：
+
+```js
+res.tempFilePath   // 形如 "http://tmp/AbC123xYz.pdf" 或 "wxfile://tmp_1a2b3c.pdf"
+```
+
+你如果直接把这个路径丢给 `wx.openDocument` / 保存，用户看到的就是 **`tmp_xxxx` 这种随机名字** —— 浏览器会自动用服务端文件名，而小程序**不会**。
+
+👉 **所以小程序必须自己用 `score.title` 拼文件名**，流程是：
+1. `wx.downloadFile` 拿到临时文件
+2. 用 `score.title` 生成合法文件名（去掉 Windows 非法字符）
+3. `FileSystemManager.copyFileSync` 复制到用户目录（此时才有正确名字）
+4. `wx.openDocument` 打开 / `wx.saveFileToDisk`（PC 端）另存
+
+### 7.2 正确的小程序下载/打开代码
+
+```js
+// 去掉文件名里的非法字符（Win/Mac 都不允许 / \ : * ? " < > |）
+function safeFileName(name) {
+  return String(name || '乐谱').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim().slice(0, 120) || '乐谱';
+}
+
+/**
+ * 下载并打开乐谱 PDF，文件名为「乐谱名.pdf」
+ * @param {{scoreId:number, title:string}} score
+ */
+function openScorePdf(score) {
+  wx.showLoading({ title: '下载中…', mask: true });
+  wx.downloadFile({
+    url: `https://zzzrrll.xin/api/scores/${score.scoreId}/file?download=1`,
+    success(res) {
+      wx.hideLoading();
+      if (res.statusCode !== 200) {
+        wx.showToast({ title: '下载失败（' + res.statusCode + '）', icon: 'none' });
+        return;
+      }
+      const fs = wx.getFileSystemManager();
+      // 目标：用户目录下 乐谱名.pdf  ← 名字在这里定下来
+      const target = `${wx.env.USER_DATA_PATH}/${safeFileName(score.title)}.pdf`;
+      try {
+        // 同名文件先删掉，避免 copyFile 报 “file already exists”
+        try { fs.unlinkSync(target); } catch (e) { /* 不存在则忽略 */ }
+        fs.copyFileSync(res.tempFilePath, target);
+      } catch (e) {
+        // 复制失败（个别机型/超长中文名）：退化为用临时文件打开，至少能看
+        wx.openDocument({ filePath: res.tempFilePath, fileType: 'pdf', showMenu: true });
+        return;
+      }
+      wx.openDocument({
+        filePath: target,      // ← 用带正确名字的本地路径
+        fileType: 'pdf',       // 必须显式指定：临时路径可能没有 .pdf 后缀
+        showMenu: true,        // 右上角「…」里可转发/用其他应用打开
+        fail: () => wx.showToast({ title: '打开失败', icon: 'none' })
+      });
+    },
+    fail: () => { wx.hideLoading(); wx.showToast({ title: '网络错误', icon: 'none' }); }
+  });
+}
+```
+
+调用：
+
+```js
+// 列表项点击
+openScorePdf(item);   // item 来自 GET /api/scores 的一条记录
+```
+
+**要点**
+
+| 项 | 说明 |
+|---|---|
+| `?download=1` | 让服务端回 `attachment`，语义更明确（不给也对，小程序不解析头） |
+| `fileType: 'pdf'` | 必须显式传，否则部分机型因临时路径无后缀而打不开 |
+| `wx.env.USER_DATA_PATH` | 应用沙盒目录，文件名可含中文；文件会长期保留，注意定期清理 |
+| `safeFileName` | 服务端标题里可能有 `、`、`+`、空格等，中文没问题，但 `\ / : * ? " < > \|` 必须替换 |
+| `showMenu: true` | 用户可通过「…」转发到微信/其他应用，这时的文件名就是上面拼的那个 |
+| PC 端另存 | 微信 PC 版可用 `wx.saveFileToDisk({ filePath: target })` 让用户选保存位置，弹出的文件名同样是「乐谱名.pdf」 |
+
+### 7.3 打包下载（一次多份）
+
+小程序**不能直接解压 zip**，而且用户也拿不到 zip 文件名。所以：
+
+- **单份下载** → 用 §7.2 的方式逐个下载，每份都能得到「乐谱名.pdf」
+- **多份** → 循环调用 `openScorePdf`（或只下载不打开，依次 copy 成各自的名字）
+- `GET /api/scores/export?ids=...` 返回的 zip 适合 PC 端浏览器；小程序里**不推荐**
+
+```js
+// 批量下载多份（只下载留存，不打开）
+async function downloadScores(list) {
+  const fs = wx.getFileSystemManager();
+  let ok = 0;
+  for (const s of list) {
+    try {
+      const res = await new Promise((resolve, reject) => {
+        wx.downloadFile({
+          url: `https://zzzrrll.xin/api/scores/${s.scoreId}/file?download=1`,
+          success: resolve, fail: reject
+        });
+      });
+      if (res.statusCode !== 200) continue;
+      const target = `${wx.env.USER_DATA_PATH}/${safeFileName(s.title)}.pdf`;
+      try { fs.unlinkSync(target); } catch (e) {}
+      fs.copyFileSync(res.tempFilePath, target);
+      ok++;
+    } catch (e) { /* 单份失败不影响其它 */ }
+  }
+  wx.showToast({ title: `已下载 ${ok}/${list.length} 份`, icon: 'none' });
+}
+```
+
+> ⚠️ 小程序没法批量「另存到手机相册/文件」。真正需要批量保存文件时，引导用户在 PC 上打开网页版用「📦 打包下载（已选 N）」更实际。
 
 ---
 
