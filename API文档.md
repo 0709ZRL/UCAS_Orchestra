@@ -337,12 +337,21 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 **GET /api/scores** — 列表（支持 乐谱名 + 声部 联合搜索）
 参数：`title`(模糊) `section`(精确匹配多声部中的任一声部，FIND_IN_SET) `isTotal` `page` `limit`(默认50)
 
-**GET /api/scores/export** — 将**当前搜索条件下**的所有乐谱打包下载为 zip
-参数：`title` `section` `isTotal`（与列表一致）；返回 `application/zip`；无匹配文件返回 404。
-zip 内文件命名：`乐谱名-声部.pdf`（总谱无声部后缀；重名自动追加序号）。
+**GET /api/scores/export** — 打包下载为 zip
+参数（两种用法）：
+- `ids=12,34,56` — **只打包勾选的这几份**（前端多选后下载）；无效 ids 返回 400
+- `title` `section` `isTotal` — 按搜索条件打包全部（与列表参数一致），**不传 ids 时生效**
+
+返回 `application/zip`；无匹配文件返回 404。
+- **zip 内文件命名 = 乐谱名.pdf**（重名自动追加 ` (n)`）
+- zip 自身文件名：`乐谱-N份-YYYY-MM-DD.zip`
+- 响应头用 `filename="ASCII回退"` + `filename*=UTF-8''...`，保证中文名在各浏览器/微信下正确落盘
 
 **GET /api/scores/:scoreId** — 详情
-**GET /api/scores/:scoreId/file** — 下载 PDF（inline 预览）
+**GET /api/scores/:scoreId/file** — PDF 文件
+- 默认 `inline`（浏览器内预览）
+- 加 `?download=1` → `attachment`（强制下载）
+- 两种模式的文件名都是 **`乐谱名.pdf`**（Content-Disposition 同时给 ASCII 回退与 UTF-8 名）
 
 **POST /api/scores/upload** — 上传（multipart，**支持一次多文件 / 整个文件夹**）
 字段：`files`(多个 PDF，单个≤50MB，一次≤200个) `title`(可选) `isTotal` `sections`(多选，可重复字段；也兼容 `section` 逗号分隔)

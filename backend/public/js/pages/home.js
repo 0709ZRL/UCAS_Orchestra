@@ -212,7 +212,7 @@ async function showScoreDetail(id) {
     + (s.filehash ? '<span class="sd-meta-item"><strong>文件哈希：</strong>' + s.filehash.substring(0, 16) + '…</span>' : '')
     + '</div>'
     + '<div class="sd-actions">'
-    + '<a class="btn" href="' + pdfUrl + '" download style="background:linear-gradient(135deg,#2d8a4e,#1e6b38);box-shadow:0 2px 6px rgba(45,138,78,.3);text-decoration:none">📥 下载 PDF</a>'
+    + '<a class="btn" href="' + pdfUrl + '?download=1" style="background:linear-gradient(135deg,#2d8a4e,#1e6b38);box-shadow:0 2px 6px rgba(45,138,78,.3);text-decoration:none">📥 下载 PDF</a>'
     + '</div>'
     + '<div class="sd-viewer">';
   // 尝试用 embed 在线预览

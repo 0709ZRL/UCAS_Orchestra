@@ -19,9 +19,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // 加载乐谱列表（读取搜索框当前值，联合搜索）
+// 注意：**不清空 _selected**，这样翻页/搜索后已勾选的乐谱依然保留
 async function loadScores() {
   const el = document.getElementById('page-scores');
-  _selected.clear();
   _currentPageIds = [];
   const t = document.getElementById('sf-scores-title');
   const s = document.getElementById('sf-scores-section');
@@ -45,6 +45,8 @@ async function loadScores() {
   html += '<div class="table-wrap">' + buildScoresTable(res.data || []) + '</div>';
   html += buildScoresPagination(res.total, res.limit);
   el.innerHTML = html;
+  // 重建界面后同步勾选状态（跨页保留）
+  updateSelectionUI();
 }
 
 function buildScoresToolbar() {
@@ -54,9 +56,10 @@ function buildScoresToolbar() {
     <select id="sf-scores-section" onchange="scoreSearch()"><option value="">声部</option>${secOptions}</select>
     <select id="sf-scores-isTotal" onchange="scoreSearch()"><option value="">类型</option><option value="0" ${_scoreFilters.isTotal === '0' ? 'selected' : ''}>分谱</option><option value="1" ${_scoreFilters.isTotal === '1' ? 'selected' : ''}>总谱</option></select>
     <button onclick="scoreSearch()">🔍 搜索</button>
-    <button class="btn-download" onclick="exportScores()">📦 打包下载</button>
+    <button class="btn-download" id="btn-export" onclick="exportScores()">📦 打包下载</button>
     <span id="selected-count" style="font-size:13px;color:#e94560;font-weight:600"></span>
-    <button id="btn-del-selected" class="btn-del" onclick="deleteSelected()" disabled>🗑 全部删除</button>`;
+    <button id="btn-clear-selected" class="btn-clear" onclick="clearSelection()" disabled>清空选择</button>
+    <button id="btn-del-selected" class="btn-del" onclick="deleteSelected()" disabled>🗑 删除选中</button>`;
   if (canAdd('scores')) html += `<button class="btn-green" onclick="showScoreForm()">＋ 新增</button>`;
   html += '</div>';
   return html;
@@ -82,7 +85,7 @@ function buildScoresTable(list) {
       <td>${escHtml(r.title)}</td>
       <td>${r.isTotal == 1 ? '总谱' : '分谱'}</td>
       <td>${sec}</td>
-      <td>${r.filehash ? `<a href="/api/scores/${r.scoreId}/file" target="_blank" class="btn" style="padding:2px 10px;font-size:12px;background:#1890ff">📄 预览</a>` : '<span style="color:#999">无文件</span>'}</td>
+      <td>${r.filehash ? `<a href="/api/scores/${r.scoreId}/file" target="_blank" class="btn" style="padding:2px 10px;font-size:12px;background:#1890ff">📄 预览</a> <a href="/api/scores/${r.scoreId}/file?download=1" class="btn" style="padding:2px 10px;font-size:12px;background:#2d8a4e;text-decoration:none">📥 下载</a>` : '<span style="color:#999">无文件</span>'}</td>
       <td class="actions">
         ${canOp ? `<button class="btn-edit" onclick="showScoreForm(${r.scoreId})">编辑</button>` : ''}
         ${canOp ? `<button class="btn-del" onclick="delScore(${r.scoreId})">删除</button>` : ''}
@@ -106,22 +109,34 @@ function scorePage(p) {
   loadScores();
 }
 
-// 打包下载：按当前搜索条件下载 zip
+// 打包下载：
+//   已勾选乐谱 → 只打包这些（?ids=...）
+//   未勾选      → 按当前搜索条件打包（需确认）
+// 文件名由后端 Content-Disposition 指定（zip 内 PDF 名 = 乐谱名），故不使用 download 属性
 function exportScores() {
-  const t = document.getElementById('sf-scores-title');
-  const s = document.getElementById('sf-scores-section');
-  const it = document.getElementById('sf-scores-isTotal');
-  const title = t ? t.value : _scoreFilters.title;
-  const section = s ? s.value : _scoreFilters.section;
-  const isTotal = it ? it.value : _scoreFilters.isTotal;
-  const q = [];
-  if (title) q.push('title=' + encodeURIComponent(title));
-  if (section) q.push('section=' + encodeURIComponent(section));
-  if (isTotal) q.push('isTotal=' + isTotal);
-  const url = '/api/scores/export?' + q.join('&');
+  const ids = Array.from(_selected);
+  let url;
+  if (ids.length) {
+    url = '/api/scores/export?ids=' + ids.join(',');
+    showToast(`正在打包已选中的 ${ids.length} 份乐谱…`);
+  } else {
+    const t = document.getElementById('sf-scores-title');
+    const s = document.getElementById('sf-scores-section');
+    const it = document.getElementById('sf-scores-isTotal');
+    const title = t ? t.value : _scoreFilters.title;
+    const section = s ? s.value : _scoreFilters.section;
+    const isTotal = it ? it.value : _scoreFilters.isTotal;
+    const scope = section ? `「${section}」的` : (title ? `标题含「${title}」的` : '');
+    if (!confirm(`未勾选任何乐谱，将按当前搜索条件打包下载${scope}全部乐谱，确定继续？`)) return;
+    const q = [];
+    if (title) q.push('title=' + encodeURIComponent(title));
+    if (section) q.push('section=' + encodeURIComponent(section));
+    if (isTotal) q.push('isTotal=' + isTotal);
+    url = '/api/scores/export' + (q.length ? '?' + q.join('&') : '');
+    showToast('正在打包…');
+  }
   const a = document.createElement('a');
   a.href = url;
-  a.download = '';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -308,11 +323,24 @@ function toggleSelectAll(cb) {
 }
 function updateSelectionUI() {
   const btn = document.getElementById('btn-del-selected');
+  const clearBtn = document.getElementById('btn-clear-selected');
   const cnt = document.getElementById('selected-count');
-  if (btn) btn.disabled = _selected.size === 0;
-  if (cnt) cnt.textContent = _selected.size ? `已选 ${_selected.size} 项` : '';
+  const exportBtn = document.getElementById('btn-export');
+  const n = _selected.size;
+  if (btn) { btn.disabled = n === 0; btn.textContent = n ? `🗑 删除选中(${n})` : '🗑 删除选中'; }
+  if (clearBtn) clearBtn.disabled = n === 0;
+  if (cnt) cnt.textContent = n ? `已选 ${n} 项（跨页保留）` : '';
+  if (exportBtn) exportBtn.textContent = n ? `📦 打包下载已选(${n})` : '📦 打包下载';
 }
-// 全部删除：仅当点击顶部“全部删除”按钮时，删除所有已选中项
+// 清空所有勾选
+function clearSelection() {
+  _selected.clear();
+  document.querySelectorAll('.row-chk').forEach(c => { c.checked = false; });
+  const all = document.getElementById('chk-all');
+  if (all) all.checked = false;
+  updateSelectionUI();
+}
+// 全部删除：仅当点击顶部“删除选中”按钮时，删除所有已选中项
 async function deleteSelected() {
   const ids = Array.from(_selected);
   if (!ids.length) return;
@@ -334,7 +362,7 @@ async function deleteSelected() {
 async function delScore(id) {
   if (!confirm('确认删除该乐谱？')) return;
   const res = await api('/scores/' + id, { method: 'DELETE' });
-  if (res.success) { showToast('已删除'); loadScores(); }
+  if (res.success) { _selected.delete(Number(id)); showToast('已删除'); loadScores(); }
   else showToast(res.message, 'error');
 }
 

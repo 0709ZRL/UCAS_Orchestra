@@ -104,18 +104,43 @@ function locateScoreFile(filehash) {
   return match ? path.join(UPLOAD_DIR, match) : null;
 }
 
-// GET /api/scores/export — 将搜索到的所有乐谱打包下载为 zip（需在 :scoreId 之前注册）
+// 生成规范的 Content-Disposition 头：
+// 同时给出 ASCII 回退名（filename=）与 UTF-8 名（filename*=，RFC 5987），
+// 保证中文乐谱名在浏览器/微信里也能正确落盘
+function contentDisposition(filename, type = 'attachment') {
+  const raw = String(filename || 'file');
+  const ascii = raw.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_') || 'file';
+  const utf8 = encodeURIComponent(raw).replace(/['()*!]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return `${type}; filename="${ascii}"; filename*=UTF-8''${utf8}`;
+}
+
+// GET /api/scores/export — 打包下载为 zip（需在 :scoreId 之前注册）
+//   用法一：?ids=12,34,56            → 只打包勾选的这几份（前端多选后下载）
+//   用法二：?title=&section=&isTotal= → 按搜索条件打包（未勾选任何项时）
 router.get('/export', async (req, res, next) => {
   try {
     const archiver = require('archiver');
-    const { title, section, isTotal } = req.query;
-    let sql = 'SELECT * FROM scores WHERE 1=1';
-    const params = [];
-    if (title) { sql += ' AND title LIKE ?'; params.push(`%${title}%`); }
-    if (section !== undefined && section !== '') { sql += ' AND FIND_IN_SET(?, section)'; params.push(section); }
-    if (isTotal !== undefined && isTotal !== '') { sql += ' AND isTotal = ?'; params.push(parseInt(isTotal)); }
-    sql += ' ORDER BY title';
-    const [rows] = await pool.query(sql, params);
+    const { title, section, isTotal, ids } = req.query;
+
+    let rows;
+    const idStr = ids === undefined || ids === null ? '' : String(ids).trim();
+    if (idStr) {
+      // 只导出指定 scoreId
+      const idList = [...new Set(idStr.split(',')
+        .map(s => parseInt(s, 10))
+        .filter(n => Number.isInteger(n) && n > 0))];
+      if (!idList.length) return res.status(400).json({ success: false, message: 'ids 参数无效' });
+      const ph = idList.map(() => '?').join(',');
+      [rows] = await pool.query(`SELECT * FROM scores WHERE scoreId IN (${ph}) ORDER BY scoreId`, idList);
+    } else {
+      let sql = 'SELECT * FROM scores WHERE 1=1';
+      const params = [];
+      if (title) { sql += ' AND title LIKE ?'; params.push(`%${title}%`); }
+      if (section !== undefined && section !== '') { sql += ' AND FIND_IN_SET(?, section)'; params.push(section); }
+      if (isTotal !== undefined && isTotal !== '') { sql += ' AND isTotal = ?'; params.push(parseInt(isTotal)); }
+      sql += ' ORDER BY title';
+      [rows] = await pool.query(sql, params);
+    }
 
     // 过滤出文件真实存在的记录
     const withFiles = [];
@@ -127,22 +152,29 @@ router.get('/export', async (req, res, next) => {
       return res.status(404).json({ success: false, message: '没有可打包的乐谱文件' });
     }
 
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    const zipName = `scores-${new Date().toISOString().slice(0,10)}.zip`;
+    // zip 内文件名 = 乐谱名.pdf（重名时自动追加 " (n)"）
+    const used = new Map();
+    const entries = withFiles.map(r => {
+      const base = (r.title || '乐谱').replace(/[\\/:*?"<>|]/g, '_').trim() || '乐谱';
+      let name = base + '.pdf';
+      if (used.has(name)) {
+        const n = used.get(name) + 1;
+        used.set(name, n);
+        name = `${base} (${n}).pdf`;
+      } else {
+        used.set(name, 1);
+      }
+      return { path: r._path, name };
+    });
+
+    const zipName = `乐谱-${entries.length}份-${new Date().toISOString().slice(0, 10)}.zip`;
     res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${zipName}"`);
+    res.setHeader('Content-Disposition', contentDisposition(zipName, 'attachment'));
+
+    const archive = archiver('zip', { zlib: { level: 9 } });
     archive.on('error', (err) => { res.destroy(err); });
     archive.pipe(res);
-
-    const used = {};
-    withFiles.forEach(r => {
-      const base = (r.title || '乐谱').replace(/[\\/:*?"<>|]/g, '_').trim() || '乐谱';
-      const sec = r.isTotal == 1 ? '' : (r.section || '');
-      let name = base + (sec ? '-' + sec.replace(/,/g, '、') : '') + '.pdf';
-      if (used[name]) { let i = used[name] + 1; used[name] = i; name = `${base}-${i}${sec ? '-' + sec.replace(/,/g, '、') : ''}.pdf`; }
-      else used[name] = 1;
-      archive.file(r._path, { name });
-    });
+    entries.forEach(e => archive.file(e.path, { name: e.name }));
     await archive.finalize();
   } catch (err) { next(err); }
 });
@@ -157,6 +189,8 @@ router.get('/:scoreId', async (req, res, next) => {
 });
 
 // GET /api/scores/:scoreId/file — 返回 PDF 文件
+//   ?download=1  → attachment（强制下载，文件名=乐谱名）
+//   不带参数     → inline（浏览器内预览，文件名同样=乐谱名）
 router.get('/:scoreId/file', async (req, res, next) => {
   try {
     const [rows] = await pool.query('SELECT * FROM scores WHERE scoreId = ?', [req.params.scoreId]);
@@ -164,8 +198,11 @@ router.get('/:scoreId/file', async (req, res, next) => {
     const record = rows[0];
     const filePath = locateScoreFile(record.filehash);
     if (!filePath) return res.status(404).json({ success: false, message: '文件不存在' });
+    const asAttachment = String(req.query.download || '') === '1';
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(record.title)}.pdf"`);
+    res.setHeader('Content-Disposition',
+      contentDisposition(`${(record.title || '乐谱').replace(/[\\/:*?"<>|]/g, '_')}.pdf`,
+        asAttachment ? 'attachment' : 'inline'));
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
   } catch (err) { next(err); }
