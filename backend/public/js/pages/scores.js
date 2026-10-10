@@ -8,6 +8,10 @@ const _scoreLimit = 20;
 // 批量删除：选中集合 与 当前页所有乐谱ID
 let _selected = new Set();
 let _currentPageIds = [];
+// 文件夹：_folders 全部文件夹；_currentFolderId: null=全部, 0=未分类, n=某文件夹
+let _folders = [];
+let _folderStats = { total: 0, uncategorized: 0 };
+let _currentFolderId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelector('.main')?.addEventListener('click', function() {
@@ -34,14 +38,25 @@ async function loadScores() {
   if (_scoreFilters.title) q.title = _scoreFilters.title;
   if (_scoreFilters.section) q.section = _scoreFilters.section;
   if (_scoreFilters.isTotal) q.isTotal = _scoreFilters.isTotal;
+  // 文件夹过滤：null=全部（不传）；0=未分类；n=指定文件夹
+  if (_currentFolderId !== null) q.folderId = _currentFolderId;
   q.page = _scoreFilters.page;
   q.limit = _scoreLimit;
   const qs = Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
 
-  const res = await api('/scores?' + qs);
+  // 同时拉取文件夹列表（含数量），失败也不影响主体列表
+  const [res, fres] = await Promise.all([
+    api('/scores?' + qs),
+    api('/score-folders').catch(() => null)
+  ]);
+  if (fres && fres.success) {
+    _folders = fres.data || [];
+    _folderStats = { total: fres.total || 0, uncategorized: fres.uncategorized || 0 };
+  }
   if (!res.success) { el.innerHTML = '<p>加载失败</p>'; return; }
 
   let html = buildScoresToolbar();
+  html += buildFolderBar();
   html += '<div class="table-wrap">' + buildScoresTable(res.data || []) + '</div>';
   html += buildScoresPagination(res.total, res.limit);
   el.innerHTML = html;
@@ -58,11 +73,111 @@ function buildScoresToolbar() {
     <button onclick="scoreSearch()">🔍 搜索</button>
     <button class="btn-download" id="btn-export" onclick="exportScores()">📦 打包下载</button>
     <span id="selected-count" style="font-size:13px;color:#e94560;font-weight:600"></span>
+    <select id="move-folder" class="move-folder" onchange="moveSelectedToFolder(this)" disabled>
+      <option value="">📁 移入文件夹…</option>
+      ${_folders.map(f => `<option value="${f.folderId}">${escHtml(f.name)}</option>`).join('')}
+      <option value="__none__">— 移出到「未分类」 —</option>
+    </select>
     <button id="btn-clear-selected" class="btn-clear" onclick="clearSelection()" disabled>清空选择</button>
     <button id="btn-del-selected" class="btn-del" onclick="deleteSelected()" disabled>🗑 删除选中</button>`;
   if (canAdd('scores')) html += `<button class="btn-green" onclick="showScoreForm()">＋ 新增</button>`;
   html += '</div>';
   return html;
+}
+
+// ===== 文件夹条 =====
+function buildFolderBar() {
+  if (!canAdd('scores') && !_folders.length) return '';
+  const has = (v) => String(_currentFolderId) === String(v);
+  let html = '<div class="folder-bar"><span class="fb-label">📁 文件夹</span>';
+
+  html += `<span class="fb-chip ${_currentFolderId === null ? 'active' : ''}" onclick="selectFolder(null)">全部 <b>${_folderStats.total}</b></span>`;
+  html += `<span class="fb-chip ${has(0) ? 'active' : ''}" onclick="selectFolder(0)">未分类 <b>${_folderStats.uncategorized}</b></span>`;
+
+  _folders.forEach(f => {
+    const active = has(f.folderId) ? ' active' : '';
+    html += `<span class="fb-chip${active}" onclick="selectFolder(${f.folderId})" title="${escHtml(f.name)}">`
+      + `<span class="fb-name">${escHtml(f.name)}</span> <b>${f.scoreCount}</b>`
+      + `<i class="fb-ico" title="重命名" onclick="event.stopPropagation();renameFolder(${f.folderId},'${escHtml(f.name).replace(/'/g, "\\'")}')">✏️</i>`
+      + `<i class="fb-ico" title="删除文件夹" onclick="event.stopPropagation();deleteFolder(${f.folderId},'${escHtml(f.name).replace(/'/g, "\\'")}')">✕</i>`
+      + '</span>';
+  });
+
+  if (canAdd('scores')) {
+    html += '<button class="fb-new" onclick="createFolder()">＋ 新建文件夹</button>';
+  }
+  html += '</div>';
+  return html;
+}
+
+function selectFolder(id) {
+  _currentFolderId = (id === null || id === '' ) ? null : Number(id);
+  _scoreFilters.page = 1;
+  loadScores();
+}
+
+// 新建文件夹
+async function createFolder() {
+  const name = prompt('请输入新文件夹名称：');
+  if (name === null) return;
+  const n = String(name).trim();
+  if (!n) { showToast('文件夹名不能为空', 'error'); return; }
+  const res = await api('/score-folders', { method: 'POST', body: JSON.stringify({ name: n }) });
+  if (res.success) { showToast('文件夹已创建'); loadScores(); }
+  else showToast(res.message, 'error');
+}
+
+// 重命名文件夹
+async function renameFolder(id, oldName) {
+  const name = prompt('重命名文件夹：', oldName || '');
+  if (name === null) return;
+  const n = String(name).trim();
+  if (!n) { showToast('文件夹名不能为空', 'error'); return; }
+  if (n === oldName) return;
+  const res = await api('/score-folders/' + id, { method: 'PUT', body: JSON.stringify({ name: n }) });
+  if (res.success) { showToast('已重命名'); loadScores(); }
+  else showToast(res.message, 'error');
+}
+
+// 删除文件夹（其中的乐谱会回到「未分类」，不会删乐谱）
+async function deleteFolder(id, name) {
+  const f = _folders.find(x => x.folderId === Number(id));
+  const cnt = f ? f.scoreCount : 0;
+  const tip = cnt
+    ? `确认删除文件夹「${name}」？\n其中 ${cnt} 份乐谱会移回「未分类」，乐谱本身不会被删除。`
+    : `确认删除文件夹「${name}」？`;
+  if (!confirm(tip)) return;
+  const res = await api('/score-folders/' + id, { method: 'DELETE' });
+  if (res.success) {
+    if (_currentFolderId === Number(id)) _currentFolderId = null; // 当前正在看被删的文件夹 → 回到全部
+    showToast(res.message || '文件夹已删除');
+    loadScores();
+  } else {
+    showToast(res.message, 'error');
+  }
+}
+
+// 把已勾选的乐谱移入/移出文件夹
+async function moveSelectedToFolder(sel) {
+  const val = sel.value;
+  sel.value = ''; // 复位下拉框
+  if (!val) return;
+  const ids = Array.from(_selected);
+  if (!ids.length) { showToast('请先勾选要移动的乐谱', 'error'); return; }
+  const folderId = val === '__none__' ? null : parseInt(val, 10);
+  const target = folderId === null ? '「未分类」' : '「' + ((_folders.find(f => f.folderId === folderId) || {}).name || '') + '」';
+  if (ids.length > 3 && !confirm(`确认把选中的 ${ids.length} 份乐谱移入${target}？`)) return;
+  const res = await api('/score-folders/move', {
+    method: 'PUT',
+    body: JSON.stringify({ scoreIds: ids, folderId })
+  });
+  if (res.success) {
+    _selected.clear();
+    showToast(res.message || '已移动');
+    loadScores();
+  } else {
+    showToast(res.message, 'error');
+  }
 }
 
 // 搜索：重置到第 1 页
@@ -75,14 +190,17 @@ function buildScoresTable(list) {
   _currentPageIds = (list || []).map(r => r.scoreId);
   if (!list || !list.length) return '<p style="padding:20px;text-align:center;color:#999">暂无乐谱</p>';
   const allOn = list.every(r => _selected.has(r.scoreId));
+  const folderName = (id) => ((_folders.find(f => f.folderId === Number(id)) || {}).name || '');
   let html = '<table><tr><th style="width:34px"><input type="checkbox" id="chk-all" ' + (allOn ? 'checked' : '') + ' onchange="toggleSelectAll(this)"></th><th>ID</th><th>乐谱名</th><th>类型</th><th>声部</th><th>PDF</th><th>操作</th></tr>';
   list.forEach(r => {
     const canOp = canOperateRow('scores', r);
     const sec = r.isTotal == 1 ? '—' : String(r.section || '').split(',').filter(Boolean).join('、');
+    const fname = r.folderId ? folderName(r.folderId) : '';
+    const folderTag = fname ? ` <span class="row-folder" title="所属文件夹">📁 ${escHtml(fname)}</span>` : '';
     html += `<tr>
       <td><input type="checkbox" class="row-chk" data-id="${r.scoreId}" ${_selected.has(r.scoreId) ? 'checked' : ''} onchange="toggleScoreSelect(this)"></td>
       <td>${r.scoreId}</td>
-      <td>${escHtml(r.title)}</td>
+      <td>${escHtml(r.title)}${folderTag}</td>
       <td>${r.isTotal == 1 ? '总谱' : '分谱'}</td>
       <td>${sec}</td>
       <td>${r.filehash ? `<a href="/api/scores/${r.scoreId}/file" target="_blank" class="btn" style="padding:2px 10px;font-size:12px;background:#1890ff">📄 预览</a> <a href="/api/scores/${r.scoreId}/file?download=1" class="btn" style="padding:2px 10px;font-size:12px;background:#2d8a4e;text-decoration:none">📥 下载</a>` : '<span style="color:#999">无文件</span>'}</td>
@@ -126,12 +244,15 @@ function exportScores() {
     const title = t ? t.value : _scoreFilters.title;
     const section = s ? s.value : _scoreFilters.section;
     const isTotal = it ? it.value : _scoreFilters.isTotal;
-    const scope = section ? `「${section}」的` : (title ? `标题含「${title}」的` : '');
+    const scope = _currentFolderId === 0 ? '「未分类」的'
+      : (_currentFolderId !== null ? '「' + ((_folders.find(f => f.folderId === _currentFolderId) || {}).name || '') + '」文件夹里的'
+      : (section ? `「${section}」的` : (title ? `标题含「${title}」的` : '')));
     if (!confirm(`未勾选任何乐谱，将按当前搜索条件打包下载${scope}全部乐谱，确定继续？`)) return;
     const q = [];
     if (title) q.push('title=' + encodeURIComponent(title));
     if (section) q.push('section=' + encodeURIComponent(section));
     if (isTotal) q.push('isTotal=' + isTotal);
+    if (_currentFolderId !== null) q.push('folderId=' + _currentFolderId);
     url = '/api/scores/export' + (q.length ? '?' + q.join('&') : '');
     showToast('正在打包…');
   }
@@ -326,11 +447,13 @@ function updateSelectionUI() {
   const clearBtn = document.getElementById('btn-clear-selected');
   const cnt = document.getElementById('selected-count');
   const exportBtn = document.getElementById('btn-export');
+  const moveSel = document.getElementById('move-folder');
   const n = _selected.size;
   if (btn) { btn.disabled = n === 0; btn.textContent = n ? `🗑 删除选中(${n})` : '🗑 删除选中'; }
   if (clearBtn) clearBtn.disabled = n === 0;
   if (cnt) cnt.textContent = n ? `已选 ${n} 项（跨页保留）` : '';
   if (exportBtn) exportBtn.textContent = n ? `📦 打包下载已选(${n})` : '📦 打包下载';
+  if (moveSel) moveSel.disabled = n === 0;
 }
 // 清空所有勾选
 function clearSelection() {

@@ -142,8 +142,9 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 | scoreId | INT PK AUTO | 乐谱ID |
 | title | VARCHAR(200) | 乐谱名 |
 | isTotal | TINYINT | 0=分谱 1=总谱 |
-| section | VARCHAR(64) | 所属声部（字符串，如「民族管乐声部」） |
+| section | VARCHAR(64) | 所属声部（字符串，如「民族管乐声部」，可逗号分隔多声部） |
 | filehash | VARCHAR(255) UNIQUE | PDF 文件哈希 |
+| folderId | INT NULL | 所属文件夹（外键→`score_folders`，`NULL`=未分类） |
 
 ### 3.6 logistics — 后勤物品
 | 字段 | 类型 | 说明 |
@@ -365,6 +366,49 @@ Cookie: token=eyJhbGciOiJIUzI1NiIs...
 **PUT /api/scores/:scoreId/file** — 替换 PDF（multipart：`file`，可选同带 `title/isTotal/section`）
 **PUT /api/scores/:scoreId** — 更新元信息 `{title,isTotal,section}`（isTotal=1 时 section 强制清空）
 **DELETE /api/scores/:scoreId** — 删除（同步删除文件）
+
+---
+
+### 4.5.1 乐谱文件夹 `/api/score-folders`（新增，独立前缀）
+
+> 用于把乐谱归类，方便查找管理。**全部是新增接口，不改动任何既有接口**，小程序端不受影响。
+> 权限与「乐谱修改权限」一致：管理员任意；声部长仅**本声部分谱**；浏览是公开的。
+
+**GET /api/score-folders** — 文件夹列表（含每个文件夹的乐谱数）
+```json
+{ "success":true, "total":292, "uncategorized":289, "data":[
+  { "folderId":3, "name":"小提琴分谱", "createdAt":"2026-10-10T10:52:36.000Z",
+    "updatedAt":null, "scoreCount":3 } ] }
+```
+- `total`：乐谱总数；`uncategorized`：未归入任何文件夹的乐谱数
+
+**POST /api/score-folders** — 新建（需管理员/声部长）
+```json
+{ "name":"小提琴分谱" }
+```
+- 名称必填、<200 字；**同名返回 409 `已存在同名文件夹`**
+- 成功 `201 { success:true, message:"文件夹已创建", data:{ folderId, name } }`
+
+**PUT /api/score-folders/move** — 把乐谱移入/移出文件夹（需管理员/声部长）
+```json
+{ "scoreIds":[61,62,114], "folderId":3 }     // 移入
+{ "scoreIds":[61], "folderId":null }         // 移出到「未分类」
+```
+- `folderId` 为 `null` / `0` / `""` → 表示「未分类」
+- 声部长只能移动**本声部分谱**，否则 `403 { message:"以下乐谱你没有操作权限：…" }`
+- 成功：`{ success:true, message:"已将 N 份乐谱移入文件夹", moved:N }`
+
+**PUT /api/score-folders/:folderId** — 重命名 `{name}`（同名 409）
+**DELETE /api/score-folders/:folderId** — 删除文件夹
+- ⚠️ **只删文件夹，不删乐谱**：其中的乐谱由外键 `ON DELETE SET NULL` 自动回到「未分类」
+- 成功：`{ success:true, message:"文件夹已删除，其中 N 份乐谱已移回“未分类”" }`
+
+**既有接口的追加参数（向后兼容，不传即保持原行为）**
+
+| 接口 | 新增可选参数 |
+|---|---|
+| `GET /api/scores` | `folderId`：不传=全部；`0`=仅未分类；`>0`=仅该文件夹。响应每行新增 `folderId` 字段 |
+| `GET /api/scores/export` | 同上（仅在**不传** `ids` 时生效） |
 
 ---
 

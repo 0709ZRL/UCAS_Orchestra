@@ -212,11 +212,13 @@ CREATE TABLE `attendance` (
 | `isTotal` | `tinyint(1)` | NO | — | `0` | 是否为总谱（1=是，0=否） |
 | `section` | `varchar(64)` | NO | — | `''` | 所属声部（分谱使用，**逗号分隔可多声部**，如 `胡琴声部,提琴声部`） |
 | `filehash` | `varchar(255)` | NO | **UNI** | — | 文件 SHA256 哈希（后端自动计算） |
+| `folderId` | `int unsigned` | YES | **MUL** | `NULL` | 所属文件夹（外键→`score_folders.folderId`，`NULL`=未分类） |
 
 **索引：**
 - 主键：`scoreId`
 - 唯一键：`UNQ_Scores_Filehash`（`filehash`）
 - 唯一键：`UNQ_Scores_Title_Type_Section`（`title`, `isTotal`, `section`）— 同一名称、同类型、同声部不重复
+- 普通键：`idx_scores_folder`（`folderId`）；外键 `FK_Scores_Folder` → `score_folders(folderId)` **ON DELETE SET NULL**（删文件夹不删乐谱）
 
 > **一致性规则（后端强制）**：总谱（`isTotal=1`）时 `section` 恒为 `''`，分谱可多声部；杜绝“既是总谱又有声部”。
 
@@ -228,10 +230,41 @@ CREATE TABLE `scores` (
   `isTotal` tinyint(1) NOT NULL DEFAULT '0',
   `section` varchar(64) NOT NULL DEFAULT '',
   `filehash` varchar(255) NOT NULL,
+  `folderId` int unsigned DEFAULT NULL COMMENT '所属文件夹（NULL=未分类）',
   PRIMARY KEY (`scoreId`),
   UNIQUE KEY `UNQ_Scores_Filehash` (`filehash`),
-  UNIQUE KEY `UNQ_Scores_Title_Type_Section` (`title`,`isTotal`,`section`)
+  UNIQUE KEY `UNQ_Scores_Title_Type_Section` (`title`,`isTotal`,`section`),
+  KEY `idx_scores_folder` (`folderId`),
+  CONSTRAINT `FK_Scores_Folder` FOREIGN KEY (`folderId`)
+    REFERENCES `score_folders`(`folderId`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+```
+
+---
+
+### 5.1 `score_folders` — 乐谱文件夹
+
+> 把乐谱归类方便查找。文件夹可增删改查；**删除文件夹不会删除里面的乐谱**（外键 `ON DELETE SET NULL`，乐谱回到「未分类」）。名称全局唯一。
+
+| 字段 | 类型 | 空 | 键 | 默认值 | 说明 |
+|------|------|----|----|--------|------|
+| `folderId` | `int unsigned` | NO | **PRI** | — | 自增主键 |
+| `name` | `varchar(200)` | NO | **UNI** | — | 文件夹名（全局唯一） |
+| `createdBy` | `varchar(64)` | YES | — | `NULL` | 创建人 personalId |
+| `createdAt` | `datetime` | NO | — | 当前时间 | 创建时间 |
+| `updatedAt` | `datetime` | YES | — | `NULL` | 更新时间（自动） |
+
+**DDL：**
+```sql
+CREATE TABLE `score_folders` (
+  `folderId` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(200) NOT NULL COMMENT '文件夹名',
+  `createdBy` VARCHAR(64) DEFAULT NULL COMMENT '创建人 personalId',
+  `createdAt` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`folderId`),
+  UNIQUE KEY `UNQ_ScoreFolders_Name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
 ---
@@ -440,6 +473,7 @@ erDiagram
     rooms ||--o{ reservations : "被预约"
     persons ||--o{ reservations : "主预约"
     persons ||--o{ rehearsal_records : "记录排练要点"
+    score_folders ||--o{ scores : "归类(可空，删夹置空)"
 
     persons {
         varchar(64) personalId PK
@@ -483,6 +517,14 @@ erDiagram
         tinyint(1) isTotal
         varchar(64) section
         varchar(255) filehash UK
+        int unsigned folderId FK
+    }
+
+    score_folders {
+        int unsigned folderId PK
+        varchar(200) name UK
+        varchar(64) createdBy
+        datetime createdAt
     }
 
     logistics {

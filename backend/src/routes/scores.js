@@ -11,38 +11,9 @@ router.use(loadUser);
 
 const UPLOAD_DIR = path.join(__dirname, '../../uploads/scores');
 
-// 成员声部数字 → 乐谱声部名称（scores.section 为字符串，可存逗号分隔多声部）
-const SCORE_SECTION_BY_INT = {
-  0:'民族管乐声部',1:'弹拨一组',2:'弹拨二组',3:'胡琴声部',4:'提琴声部',5:'西洋木管声部',
-  6:'西洋铜管声部',7:'低音声部',8:'钢琴声部',9:'打击声部',10:'无声部'
-};
-// 合法声部名集合
-const SCORE_SECTIONS = Object.values(SCORE_SECTION_BY_INT);
+// 声部常量与权限判断抽到 lib/scoreSections.js（与 scoreFolders.js 共用，规则不漂移）
+const { SCORE_SECTION_BY_INT, SCORE_SECTIONS, resolveSection, sectionLeaderCanOperate } = require('../lib/scoreSections');
 
-// 解析分谱的声部列表（逗号分隔存储）；总谱强制无声部（修复“既是总谱又有声部”的 bug）
-// sections / section 均兼容：数组（多选）、单个字符串、逗号分隔字符串
-function resolveSection(isTotal, section, sections) {
-  if (parseInt(isTotal || 0) === 1) return '';
-  const list = [];
-  const collect = (v) => {
-    if (Array.isArray(v)) v.forEach(x => { if (x !== undefined && x !== null) list.push(String(x)); });
-    else if (v !== undefined && v !== null && v !== '') list.push(String(v));
-  };
-  collect(sections);
-  collect(section);
-  const cleaned = list.map(s => s.trim()).filter(Boolean).filter(s => SCORE_SECTIONS.includes(s));
-  return [...new Set(cleaned)].join(',');
-}
-
-// 声部长能否操作该乐谱：仅本声部 分谱（isTotal=0，且声部列表包含本声部）
-function sectionLeaderCanOperate(user, record) {
-  if (isManager(user)) return true;
-  if (user.job != 1) return false;
-  if (record.isTotal == 1) return false;
-  const mySection = SCORE_SECTION_BY_INT[user.section] || '';
-  const sections = String(record.section || '').split(',').map(s => s.trim()).filter(Boolean);
-  return sections.includes(mySection);
-}
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // multer 配置：仅接受 PDF（支持一次多文件上传 files[]）
@@ -74,14 +45,19 @@ function computeHash(filePath) {
 }
 
 // GET /api/scores — 列表，支持 乐谱名 + 声部 联合搜索（声部用 FIND_IN_SET 匹配多声部）
+// 新增可选参数 folderId：不传=全部；0=仅未分类；>0=仅该文件夹（纯追加参数，不影响既有调用方）
 router.get('/', async (req, res, next) => {
   try {
-    const { title, section, isTotal, page = 1, limit = 50 } = req.query;
+    const { title, section, isTotal, folderId, page = 1, limit = 50 } = req.query;
     let sql = 'SELECT * FROM scores WHERE 1=1';
     const params = [];
     if (title) { sql += ' AND title LIKE ?'; params.push(`%${title}%`); }
     if (section !== undefined && section !== '') { sql += ' AND FIND_IN_SET(?, section)'; params.push(section); }
     if (isTotal !== undefined && isTotal !== '') { sql += ' AND isTotal = ?'; params.push(parseInt(isTotal)); }
+    if (folderId !== undefined && folderId !== '') {
+      if (String(folderId) === '0' || String(folderId) === 'null') sql += ' AND folderId IS NULL';
+      else { sql += ' AND folderId = ?'; params.push(parseInt(folderId)); }
+    }
 
     const [countRows] = await pool.query(sql.replace('SELECT *', 'SELECT COUNT(*) AS total'), params);
     const total = countRows[0].total;
@@ -120,7 +96,7 @@ function contentDisposition(filename, type = 'attachment') {
 router.get('/export', async (req, res, next) => {
   try {
     const archiver = require('archiver');
-    const { title, section, isTotal, ids } = req.query;
+    const { title, section, isTotal, ids, folderId } = req.query;
 
     let rows;
     const idStr = ids === undefined || ids === null ? '' : String(ids).trim();
@@ -138,6 +114,10 @@ router.get('/export', async (req, res, next) => {
       if (title) { sql += ' AND title LIKE ?'; params.push(`%${title}%`); }
       if (section !== undefined && section !== '') { sql += ' AND FIND_IN_SET(?, section)'; params.push(section); }
       if (isTotal !== undefined && isTotal !== '') { sql += ' AND isTotal = ?'; params.push(parseInt(isTotal)); }
+      if (folderId !== undefined && folderId !== '') {
+        if (String(folderId) === '0' || String(folderId) === 'null') sql += ' AND folderId IS NULL';
+        else { sql += ' AND folderId = ?'; params.push(parseInt(folderId)); }
+      }
       sql += ' ORDER BY title';
       [rows] = await pool.query(sql, params);
     }

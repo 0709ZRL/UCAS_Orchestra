@@ -320,6 +320,20 @@ html.is-dev a[href="/rehearsals"]{display:none!important}
 .toolbar button.btn-clear{background:#fff;color:#6b7280;border:1px solid #d9d9d9;box-shadow:none}
 .toolbar button.btn-clear:hover:not(:disabled){border-color:#fa8c16;color:#d46b08;box-shadow:none;transform:none}
 .toolbar button.btn-clear:disabled{opacity:.5;cursor:default;transform:none;box-shadow:none}
+/* ===== 乐谱文件夹条 ===== */
+.folder-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-6px 0 14px;padding:10px 12px;background:#fbfcfe;border:1px solid #e8edf5;border-radius:10px}
+.folder-bar .fb-label{font-size:13px;color:#7a8899;font-weight:600;margin-right:2px}
+.fb-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1px solid #dfe6f0;background:#fff;border-radius:999px;font-size:13px;color:#44546a;cursor:pointer;transition:all .15s;max-width:280px}
+.fb-chip:hover{border-color:#7c9cff;color:#3b5bdb}
+.fb-chip.active{background:linear-gradient(135deg,#667eea,#764ba2);border-color:transparent;color:#fff;box-shadow:0 2px 8px rgba(102,126,234,.3)}
+.fb-chip b{font-size:12px;opacity:.85;font-weight:600}
+.fb-chip .fb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}
+.fb-chip .fb-ico{font-style:normal;font-size:11px;opacity:.5;padding:0 2px;border-radius:3px;line-height:1}
+.fb-chip .fb-ico:hover{opacity:1;background:rgba(0,0,0,.12)}
+.fb-new{padding:5px 12px;border:1px dashed #b9c6dd;background:#fff;color:#4a6b9a;border-radius:999px;font-size:13px;cursor:pointer;transition:all .15s}
+.fb-new:hover{border-color:#667eea;color:#667eea;background:#f5f7ff}
+.row-folder{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#eef3ff;color:#4a6b9a;font-size:11px;white-space:nowrap}
+.toolbar select.move-folder{max-width:180px}
 
 /* ===== 乐谱：声部多选（单行，横向滚动，所有字一排） ===== */
 .sec-list{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:4px 18px;padding:6px 8px;border:1px solid #eee;border-radius:6px;background:#fafafa}

@@ -21,6 +21,7 @@ const roomsRouter = require('./routes/rooms');
 const reservationsRouter = require('./routes/reservations');
 const rehearsalsRouter = require('./routes/rehearsals');
 const instrumentsRouter = require('./routes/instruments');
+const scoreFoldersRouter = require('./routes/scoreFolders');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -116,6 +117,7 @@ app.use('/api/persons', personsRouter);
 // app.use('/api/events') removed
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/scores', scoresRouter);
+app.use('/api/score-folders', scoreFoldersRouter);
 app.use('/api/logistics', logisticsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/articles', articlesRouter);

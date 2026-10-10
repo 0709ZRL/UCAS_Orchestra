@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS attendance (
   CONSTRAINT FK_Attendance_Event FOREIGN KEY (eventId) REFERENCES events(eventId) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 乐谱文件夹（乐谱归类管理；文件夹删除时其中的乐谱回到“未分类”）
+CREATE TABLE IF NOT EXISTS score_folders (
+  folderId INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(200) NOT NULL COMMENT '文件夹名',
+  createdBy VARCHAR(64) DEFAULT NULL COMMENT '创建人 personalId',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (folderId),
+  UNIQUE KEY UNQ_ScoreFolders_Name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 乐谱信息
 CREATE TABLE IF NOT EXISTS scores (
   scoreId INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -64,9 +75,13 @@ CREATE TABLE IF NOT EXISTS scores (
   isTotal TINYINT(1) NOT NULL DEFAULT 0,
   section VARCHAR(64) NOT NULL DEFAULT '',
   filehash VARCHAR(255) NOT NULL,
+  folderId INT UNSIGNED DEFAULT NULL COMMENT '所属文件夹（NULL=未分类）',
   PRIMARY KEY (scoreId),
   UNIQUE KEY UNQ_Scores_Filehash (filehash),
-  UNIQUE KEY UNQ_Scores_Title_Type_Section (title, isTotal, section)
+  UNIQUE KEY UNQ_Scores_Title_Type_Section (title, isTotal, section),
+  KEY idx_scores_folder (folderId),
+  CONSTRAINT FK_Scores_Folder FOREIGN KEY (folderId)
+    REFERENCES score_folders(folderId) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 后勤信息
@@ -114,6 +129,17 @@ INSERT IGNORE INTO rooms (roomId, campus, name, description) VALUES
 ('玉泉路琴房', '玉泉路琴房', '玉泉路琴房', NULL),
 ('雁栖湖琴房', '雁栖湖琴房', '雁栖湖琴房', NULL),
 ('奥运村琴房', '奥运村琴房', '奥运村琴房', NULL);
+
+-- 乐谱文件夹（乐谱归类管理）
+CREATE TABLE IF NOT EXISTS score_folders (
+  folderId INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name VARCHAR(200) NOT NULL COMMENT '文件夹名',
+  createdBy VARCHAR(64) DEFAULT NULL COMMENT '创建人 personalId',
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (folderId),
+  UNIQUE KEY UNQ_ScoreFolders_Name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 应用配置（键值对）
 -- reservation_password：琴房负责人设置的四位预约密码，发展成员预约琴房时需输入
