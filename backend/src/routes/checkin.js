@@ -49,7 +49,7 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
 /**
  * POST /api/checkin — 活动打卡
  * 请求体：{ eventId, userLat, userLng }
- * 验证：活动正在进行中、用户在地点附近 10m 内
+ * 验证：活动正在进行中、用户在地点附近 100m 内
  */
 router.post('/', async (req, res, next) => {
   try {
@@ -101,7 +101,7 @@ router.post('/', async (req, res, next) => {
       parsedLoc.lat, parsedLoc.lng
     );
 
-    const MAX_DISTANCE = 10; // 10 米
+    const MAX_DISTANCE = 100; // 100 米
     if (distance > MAX_DISTANCE) {
       return res.status(403).json({
         success: false,

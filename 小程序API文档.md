@@ -365,13 +365,13 @@ POST /api/checkin
 
 1. `wx.getLocation({ type:'gcj02' })` → 拿到 `latitude` / `longitude`
 2. 用活动详情里的 `location`（`"纬度,经度"`）作为**目标点**
-3. `POST /api/checkin`，服务端用 Haversine 计算距离，**>10 米判定失败**
+3. `POST /api/checkin`，服务端用 Haversine 计算距离，**>100 米判定失败**
 
 返回示例：
 
 ```json
 { "success":true, "message":"打卡成功" }
-{ "success":false, "message":"距离活动地点太远（当前 123 米，需在 10 米内）" }
+{ "success":false, "message":"距离活动地点太远（当前 123 米，需在 100 米内）" }
 ```
 
 需要在 `app.json` 声明权限：
