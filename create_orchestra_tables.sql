@@ -50,11 +50,12 @@ CREATE TABLE IF NOT EXISTS attendance (
   title VARCHAR(200),
   method TINYINT(1) NOT NULL DEFAULT 0 COMMENT '0=报名 1=参加',
   PRIMARY KEY (attendanceId),
-  UNIQUE KEY UNQ_Attendance_Personal_Event (personalId, eventId),
+  UNIQUE KEY UNQ_Attendance_Personal_Event_Method (personalId, eventId, method),
   KEY FK_Attendance_Personal (personalId),
   KEY FK_Attendance_Event (eventId),
-  CONSTRAINT FK_Attendance_Person FOREIGN KEY (personalId) REFERENCES persons(personalId) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT FK_Attendance_Event FOREIGN KEY (eventId) REFERENCES events(eventId) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT FK_Attendance_Person FOREIGN KEY (personalId) REFERENCES persons(personalId) ON DELETE CASCADE ON UPDATE CASCADE
+  -- 注意：eventId 是多态软引用（ARTICLE_<id> 或 events.eventId），故意不加外键，
+  -- 否则报名/打卡写入会因外键失败（2026-10-14 踩过这个坑）
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- 乐谱文件夹（乐谱归类管理；文件夹删除时其中的乐谱回到“未分类”）

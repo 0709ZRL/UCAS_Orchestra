@@ -165,13 +165,13 @@ CREATE TABLE `events` (
 |------|------|----|----|--------|------|
 | `attendanceId` | `int unsigned` | NO | **PRI** | — | 自增主键 |
 | `personalId` | `varchar(64)` | NO | **MUL** | — | 用户ID（外键→`persons`） |
-| `eventId` | `varchar(64)` | NO | **MUL** | — | 活动ID（外键→`events`） |
+| `eventId` | `varchar(64)` | NO | **MUL** | — | 活动ID（**软引用**：`ARTICLE_<articleId>` 或历史 `events.eventId`，**无外键**） |
 | `title` | `varchar(200)` | YES | — | `NULL` | 标题 |
 | `method` | `tinyint(1)` | NO | — | `0` | 参加方式（0=报名，1=参加） |
 
 **索引：**
 - 主键：`attendanceId`
-- 唯一键：`UNQ_Attendance_Personal_Event`（`personalId`, `eventId`）
+- 唯一键：`UNQ_Attendance_Personal_Event_Method`（`personalId`, `eventId`, `method`）
 - 普通键：`FK_Attendance_Personal`（`personalId`）
 - 普通键：`FK_Attendance_Event`（`eventId`）
 
@@ -179,7 +179,9 @@ CREATE TABLE `events` (
 | 约束名 | 字段 | 引用 | 删除规则 | 更新规则 |
 |--------|------|------|----------|----------|
 | `FK_Attendance_Person` | `personalId` | `persons(personalId)` | CASCADE | CASCADE |
-| `FK_Attendance_Event` | `eventId` | `events(eventId)` | CASCADE | CASCADE |
+
+> ⚠️ **`eventId` 故意不加外键**：它是**多态软引用** —— 既可能是 `ARTICLE_<articleId>`（现在的报名/打卡走文章），也可能是历史 `events.eventId`。
+> 如果给它加 `→ events(eventId)` 外键，**所有报名/打卡都会因外键失败而写不进去**（2026-10-14 就因为这个外键导致报名与打卡全量报错，已删除）。只保留普通索引供查询。
 
 **DDL：**
 ```sql
@@ -190,13 +192,14 @@ CREATE TABLE `attendance` (
   `title` varchar(200) DEFAULT NULL,
   `method` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0=报名 1=参加',
   PRIMARY KEY (`attendanceId`),
-  UNIQUE KEY `UNQ_Attendance_Personal_Event` (`personalId`,`eventId`),
+  UNIQUE KEY `UNQ_Attendance_Personal_Event_Method` (`personalId`,`eventId`,`method`),
   KEY `FK_Attendance_Personal` (`personalId`),
   KEY `FK_Attendance_Event` (`eventId`),
-  CONSTRAINT `FK_Attendance_Event` FOREIGN KEY (`eventId`) REFERENCES `events` (`eventId`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `FK_Attendance_Person` FOREIGN KEY (`personalId`) REFERENCES `persons` (`personalId`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 ```
+
+> 说明：同一人同一活动允许同时存在两条记录：一条 `method=0`（报名），一条 `method=1`（打卡/参加）。这样大屏统计时，可分别按 `method` 计算报名人数和出勤人数。
 
 ---
 
