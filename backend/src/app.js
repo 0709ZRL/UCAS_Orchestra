@@ -146,6 +146,21 @@ async function bootstrap() {
   } catch (error) {
     console.error('⚠️ Attendance schema 迁移失败（服务仍继续启动）:', error.message);
   }
+
+  // 运行期巡检：万一 attendance.eventId 的外键在服务运行中被加回来，
+  // 不必等到重启就会在 5 分钟内自动移除，保证报名/打卡不会长时间失效。
+  if (typeof pool.dropAttendanceEventFk === 'function') {
+    const patrolMs = Number(process.env.ATTENDANCE_FK_PATROL_MS) || 5 * 60 * 1000;
+    const timer = setInterval(async () => {
+      try {
+        await pool.dropAttendanceEventFk();
+      } catch (error) {
+        console.error('⚠️ 外键巡检失败（忽略，下次继续）:', error.message);
+      }
+    }, patrolMs);
+    if (typeof timer.unref === 'function') timer.unref();
+  }
+
   app.listen(PORT, () => {
     console.log(`✅ Orchestra API server running on http://localhost:${PORT}`);
   });

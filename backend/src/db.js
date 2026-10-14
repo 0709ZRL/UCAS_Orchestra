@@ -12,35 +12,48 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
+/**
+ * 保险：移除 attendance.eventId 上的外键。
+ *
+ * eventId 是**多态软引用**：既可能是 `ARTICLE_<articleId>`（现在报名/打卡都走文章），
+ * 也可能是历史 `events.eventId`。一旦有人给它加上 → events(eventId) 的外键，
+ * **所有报名与打卡写入都会报 1452 外键错误**（2026-10-14 线上事故）。
+ *
+ * 该函数在启动时执行一次，并会被 app.js 定时巡检，确保外键不会被重新加回而再次瘫痪。
+ * 返回被移除的外键名数组（正常情况下为空数组）。
+ */
+async function dropAttendanceEventFk() {
+  const removed = [];
+  const [fkRows] = await pool.query(
+    `SELECT rc.constraint_name AS fkName
+       FROM information_schema.referential_constraints rc
+       JOIN information_schema.key_column_usage kcu
+         ON kcu.constraint_schema = rc.constraint_schema
+        AND kcu.constraint_name = rc.constraint_name
+      WHERE rc.constraint_schema = DATABASE()
+        AND rc.table_name = 'attendance'
+        AND kcu.column_name = 'eventId'`
+  );
+  for (const fk of fkRows) {
+    // information_schema 各列的返回大小写不固定，兼容多种写法
+    const fkName = fk.fkName || fk.FKNAME || fk.CONSTRAINT_NAME || fk.constraint_name;
+    if (!fkName) continue;
+    try {
+      console.warn(`[attendance] 检测到 eventId 外键 ${fkName}（会阻断报名/打卡），自动移除`);
+      await pool.query('ALTER TABLE attendance DROP FOREIGN KEY `' + fkName + '`');
+      console.warn(`[attendance] 已移除 ${fkName}，报名/打卡恢复正常`);
+      removed.push(fkName);
+    } catch (dropErr) {
+      console.error(`[attendance] 移除外键 ${fkName} 失败：${dropErr.message}`);
+    }
+  }
+  return removed;
+}
+
 async function ensureAttendanceSchema() {
   try {
-    // ── 保险 1：移除 attendance.eventId 上的外键 ──────────────────────────
-    // eventId 是**多态软引用**：既可能是 `ARTICLE_<articleId>`（现在的报名/打卡都走文章），
-    // 也可能是历史 `events.eventId`。一旦给它加上 → events(eventId) 的外键，
-    // **所有报名与打卡写入都会报 1452 外键错误**（2026-10-14 线上事故）。
-    // 这里每次启动都主动检查并删除，确保不会被重新加回来而再次瘫痪。
-    const [fkRows] = await pool.query(
-      `SELECT rc.constraint_name AS fkName
-         FROM information_schema.referential_constraints rc
-         JOIN information_schema.key_column_usage kcu
-           ON kcu.constraint_schema = rc.constraint_schema
-          AND kcu.constraint_name = rc.constraint_name
-        WHERE rc.constraint_schema = DATABASE()
-          AND rc.table_name = 'attendance'
-          AND kcu.column_name = 'eventId'`
-    );
-    for (const fk of fkRows) {
-      // information_schema 各列的返回大小写不固定，兼容多种写法
-      const fkName = fk.fkName || fk.FKNAME || fk.CONSTRAINT_NAME || fk.constraint_name;
-      if (!fkName) continue;
-      try {
-        console.warn(`[attendance] 检测到 eventId 外键 ${fkName}（会阻断报名/打卡），自动移除`);
-        await pool.query('ALTER TABLE attendance DROP FOREIGN KEY `' + fkName + '`');
-        console.warn(`[attendance] 已移除 ${fkName}，报名/打卡恢复正常`);
-      } catch (dropErr) {
-        console.error(`[attendance] 移除外键 ${fkName} 失败：${dropErr.message}`);
-      }
-    }
+    // ── 保险 1：移除 attendance.eventId 上的外键（详见 dropAttendanceEventFk 注释）
+    await dropAttendanceEventFk();
 
     const [indexes] = await pool.query(
       "SHOW INDEX FROM attendance WHERE Key_name IN ('UNQ_Attendance_Personal_Event', 'UNQ_Attendance_Personal_Event_Method')"
@@ -86,3 +99,4 @@ async function ensureAttendanceSchema() {
 
 module.exports = pool;
 module.exports.ensureAttendanceSchema = ensureAttendanceSchema;
+module.exports.dropAttendanceEventFk = dropAttendanceEventFk;
