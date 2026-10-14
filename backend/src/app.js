@@ -5,6 +5,7 @@ const fs = require('fs');
 const cookieParser = require('cookie-parser');
 require('dotenv').config();
 
+const pool = require('./db');
 const errorHandler = require('./middleware/errorHandler');
 const personsRouter = require('./routes/persons');
 // eventsRouter removed — merged into articles
@@ -135,9 +136,22 @@ app.get('/api/health', (_req, res) => {
   res.json({ success: true, message: 'Orchestra API is running', time: new Date().toISOString() });
 });
 
+async function bootstrap() {
+  // 数据库迁移失败【不能】阻止服务启动：
+  // 迁移只是修 schema，业务逻辑（含报名/打卡）并不依赖它成功；
+  // 一旦 process.exit(1)，一次启动期抖动就会让全站 502。
+  // 因此这里只记日志，继续启动；迁移会在下次重启时重试。
+  try {
+    await pool.ensureAttendanceSchema();
+  } catch (error) {
+    console.error('⚠️ Attendance schema 迁移失败（服务仍继续启动）:', error.message);
+  }
+  app.listen(PORT, () => {
+    console.log(`✅ Orchestra API server running on http://localhost:${PORT}`);
+  });
+}
+
 // 错误处理
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`✅ Orchestra API server running on http://localhost:${PORT}`);
-});
+bootstrap();

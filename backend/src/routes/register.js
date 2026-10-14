@@ -44,10 +44,16 @@ router.post('/event/:articleId', async (req, res, next) => {
     const a = articles[0];
     const eventId = 'ARTICLE_' + a.articleId;
     const [existing] = await pool.query(
-      'SELECT attendanceId FROM attendance WHERE personalId = ? AND eventId = ?', [user.personalId, eventId]
+      'SELECT attendanceId, method FROM attendance WHERE personalId = ? AND eventId = ? AND method = 0',
+      [user.personalId, eventId]
     );
-    if (existing.length) return res.status(409).json({ success: false, message: '你已报名该活动' });
-    await pool.query('INSERT INTO attendance (personalId, eventId, title, method) VALUES (?, ?, ?, 0)', [user.personalId, eventId, a.title]);
+    if (existing.length) {
+      return res.status(409).json({ success: false, message: '你已报名该活动' });
+    }
+    await pool.query(
+      'INSERT INTO attendance (personalId, eventId, title, method) VALUES (?, ?, ?, 0)',
+      [user.personalId, eventId, a.title]
+    );
     res.json({ success: true, message: '报名成功！' });
   } catch (err) { next(err); }
 });
